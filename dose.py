@@ -172,7 +172,7 @@ def kalantzis_3d(input_var=None):
     # Add a fully-connected layer of 30 units, using the linear rectifier, and
     # initializing weights with Glorot's scheme (which is the default anyway):
     l_hid1 = lasagne.layers.DenseLayer(
-            l_in_drop, num_units=30,
+            l_in_drop, num_units=300,
             nonlinearity=lasagne.nonlinearities.rectify,
             W=lasagne.init.GlorotUniform())
     pp(3,7)
@@ -183,7 +183,7 @@ def kalantzis_3d(input_var=None):
 
     # A 5-unit layer:
     l_hid2 = lasagne.layers.DenseLayer(
-            l_hid1_drop, num_units=5,
+            l_hid1_drop, num_units=50,
             nonlinearity=lasagne.nonlinearities.rectify)
     pp(5,7)
 
@@ -194,7 +194,7 @@ def kalantzis_3d(input_var=None):
     # Finally, we'll add the fully-connected output layer, of 1 rectifier unit:
     l_out = lasagne.layers.DenseLayer(
             l_hid2_drop, num_units=1,
-            nonlinearity=lasagne.nonlinearities.sigmoid)
+            nonlinearity=lasagne.nonlinearities.rectify)
     pp(7,7)
 
     # Each layer is linked to its incoming layer(s), so we only need to pass
@@ -216,7 +216,9 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 def main(model='k3d', num_epochs=500):
     # Load the dose data and calculate the fluence
     dose = import_dose('5cm')
+    dose = dose/np.max(dose)
     fluence = generate_fluence(dose.shape, VOXEL_SIZE, FIELD_SIZE)
+    fluence = fluence/np.max(fluence)
 
     x_train, y_train, x_val, y_val, x_test, y_test = load_kalantzis_3d_dataset(dose, fluence)
 
@@ -252,8 +254,7 @@ def main(model='k3d', num_epochs=500):
     test_loss = lasagne.objectives.squared_error(test_prediction, target_var)
     test_loss = test_loss.mean()
     # As a bonus, also create an expression for the classification accuracy:
-    test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
-                      dtype=theano.config.floatX)
+    test_acc = target_var
 
     # Compile a function performing a training step on a mini-batch (by giving
     # the updates dictionary) and returning the corresponding training loss:
@@ -271,7 +272,7 @@ def main(model='k3d', num_epochs=500):
         train_batches = 0
         start_time = time.time()
         print('TRAIN')
-        for batch in iterate_minibatches(x_train, y_train, 600, shuffle=False):
+        for batch in iterate_minibatches(x_train, y_train, 500, shuffle=False):
             inputs, targets = batch
             train_err += train_fn(inputs, targets)
             train_batches += 1
@@ -281,11 +282,11 @@ def main(model='k3d', num_epochs=500):
         val_acc = 0
         val_batches = 0
         print('VALIDATE')
-        for batch in iterate_minibatches(x_val, y_val, 600, shuffle=False):
+        for batch in iterate_minibatches(x_val, y_val, 500, shuffle=False):
             inputs, targets = batch
             err, acc = val_fn(inputs, targets)
             val_err += err
-            val_acc += acc
+            val_acc = acc
             val_batches += 1
 
         # Then we print the results for this epoch:
@@ -293,8 +294,7 @@ def main(model='k3d', num_epochs=500):
             epoch + 1, num_epochs, time.time() - start_time))
         print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
         print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
-        print("  validation accuracy:\t\t{:.2f} %".format(
-            val_acc / val_batches * 100))
+        #print("  validation accuracy:\t\t{:.2f} %".format(val_acc / val_batches * 100))
 
     # After training, we compute and print the test error:
     test_err = 0

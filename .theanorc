@@ -1,0 +1,14 @@
+[nvcc]
+flags=-D_FORCE_INLINES
+fastmath=True
+
+[global]
+allow_gc=False
+floatX=float32
+device=gpu0
+
+[lib]
+cnmem=0
+
+[blas]
+ldflags='-L/usr/lib -lopenblas'
