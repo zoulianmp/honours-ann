@@ -101,7 +101,7 @@ def generate_fluence(vol_shape, vox_size, field_size):
 def load_kalantzis_3d_dataset(dose, fluence):
     assert dose.shape == fluence.shape
     print('\n')
-    print('Formulating data set...')
+    print('Preparing data set...')
     pp(0,6)
 
     # The outer voxels of the dose tensors are unusable since the neighbouring
@@ -147,9 +147,6 @@ def load_kalantzis_3d_dataset(dose, fluence):
     x_val = np.array(x_tmp[n_train:-n_test], dtype=np.float32)
     y_val = np.array(y_tmp[n_train:-n_test], dtype=np.float32)
     pp(6,6)
-
-    print(y_train.shape)
-    print(y_train[0])
 
     # (It doesn't matter how we do this as long as we can read them again.)
     return x_train, y_train, x_val, y_val, x_test, y_test
@@ -225,7 +222,7 @@ def main(model='k3d', num_epochs=500):
 
     # Prepare Theano variables for inputs and targets
     input_var = T.tensor4('inputs')
-    target_var = T.matrix('targets')
+    target_var = T.fmatrix('targets')
 
     # Create neural network model (depending on first command line parameter)
     if model == 'k3d':
@@ -267,20 +264,15 @@ def main(model='k3d', num_epochs=500):
 
     # Finally, launch the training loop.
     print("Starting training...")
-    print('type(x_val[0][0][0][0])')
-    print(type(x_val[0][0][0][0]))
     # We iterate over epochs:
     for epoch in range(num_epochs):
         # In each epoch, we do a full pass over the training data:
         train_err = 0
         train_batches = 0
         start_time = time.time()
-        for batch in iterate_minibatches(x_train, y_train, 500, shuffle=False):
+        print('TRAIN')
+        for batch in iterate_minibatches(x_train, y_train, 600, shuffle=False):
             inputs, targets = batch
-            print('# TRAIN #')
-            print(inputs.shape)
-            print(targets.shape)
-            print('# END TRAIN #')
             train_err += train_fn(inputs, targets)
             train_batches += 1
 
@@ -288,12 +280,9 @@ def main(model='k3d', num_epochs=500):
         val_err = 0
         val_acc = 0
         val_batches = 0
-        for batch in iterate_minibatches(x_val, y_val, 500, shuffle=False):
+        print('VALIDATE')
+        for batch in iterate_minibatches(x_val, y_val, 600, shuffle=False):
             inputs, targets = batch
-            print('# VALIDATE #')
-            print(inputs.shape)
-            print(targets.shape)
-            print('# END VALIDATE #')
             err, acc = val_fn(inputs, targets)
             val_err += err
             val_acc += acc
