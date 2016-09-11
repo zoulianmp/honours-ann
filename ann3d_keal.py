@@ -4,7 +4,7 @@
 #======================================================================
 # Program:     Neural Network Dose Distribution
 # Author:      James Keal
-# Date:        2016/08/04
+# Date:        2016/09/11
 #======================================================================
 
 '''
@@ -14,7 +14,7 @@ comment
 import numpy as np
 import lasagne
 
-def load_kalantzis_3d_dataset(dose, fluence):
+def ann3d_keal_dataset(dose, fluence):
     assert dose.shape == fluence.shape
 
     # The outer voxels of the dose tensors are unusable since the neighbouring
@@ -29,7 +29,7 @@ def load_kalantzis_3d_dataset(dose, fluence):
     coord_list = np.array(coord_list)
     np.random.shuffle(coord_list)
 
-    x_tmp = np.zeros((len(coord_list),1,1,7))
+    x_tmp = np.zeros((len(coord_list),1,1,10))
     y_tmp = np.zeros((len(coord_list),1))
     for i in range(len(coord_list)):
         c = coord_list[i]
@@ -40,7 +40,10 @@ def load_kalantzis_3d_dataset(dose, fluence):
             fluence[c[0],c[1]-1,c[2]],
             fluence[c[0],c[1]+1,c[2]],
             fluence[c[0],c[1],c[2]-1],
-            fluence[c[0],c[1],c[2]+1]
+            fluence[c[0],c[1],c[2]+1],
+            float(c[0])/fluence.shape[0],
+            float(c[1])/fluence.shape[1] - 0.5,
+            float(c[2])/fluence.shape[2] - 0.5
             ]
         y_tmp[i] = [dose[c[0],c[1],c[2]]]
 
@@ -59,15 +62,15 @@ def load_kalantzis_3d_dataset(dose, fluence):
     # (It doesn't matter how we do this as long as we can read them again.)
     return x_train, y_train, x_val, y_val, x_test, y_test
 
-def kalantzis_3d(input_var=None):
+def ann3d_keal_model(input_var=None):
     # This creates an MLP of two hidden layers of 800 units each, followed by
     # a softmax output layer of 10 units. It applies 20% dropout to the input
     # data and 50% dropout to the hidden layers.
 
     # Input layer, specifying the expected input shape of the network
-    # (unspecified batchsize, 1 channel, 1 rows and 7 columns) and
+    # (unspecified batchsize, 1 channel, 1 rows and 10 columns) and
     # linking it to the given Theano variable `input_var`, if any:
-    l_in = lasagne.layers.InputLayer(shape=(None, 1, 1, 7), input_var=input_var)
+    l_in = lasagne.layers.InputLayer(shape=(None, 1, 1, 10), input_var=input_var)
 
     # Apply 20% dropout to the input data:
     l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.0)

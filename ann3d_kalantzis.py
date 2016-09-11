@@ -14,11 +14,11 @@ comment
 import numpy as np
 import lasagne
 
-def load_kalantzis_3d_dataset(dose, fluence):
+def ann3d_kalantzis_dataset(dose, fluence):
     assert dose.shape == fluence.shape
 
     # The outer voxels of the dose tensors are unusable since the neighbouring
-    # voxels are included as input to the neural network. We create a set of
+    # voxels are included as input to the neural network. We create a list of
     # all usable coordinates:
     coord_list = []
     for i in range(1, dose.shape[0]-1):
@@ -62,7 +62,7 @@ def load_kalantzis_3d_dataset(dose, fluence):
     # (It doesn't matter how we do this as long as we can read them again.)
     return x_train, y_train, x_val, y_val, x_test, y_test
 
-def kalantzis_3d(input_var=None):
+def ann3d_kalantzis_model(input_var=None):
     # This creates an MLP of two hidden layers of 800 units each, followed by
     # a softmax output layer of 10 units. It applies 20% dropout to the input
     # data and 50% dropout to the hidden layers.

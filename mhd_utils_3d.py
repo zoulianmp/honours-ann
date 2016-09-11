@@ -3,7 +3,6 @@
 
 #======================================================================
 # Program:     Diffusion Weighted MRI Reconstruction
-# Language:    Python
 # Author:      bjian
 # Date:        2008/10/27
 # Edited:      PJackson 2013/06/06
