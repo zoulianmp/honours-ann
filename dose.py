@@ -119,7 +119,7 @@ def main(model='keal', num_epochs=100, batchsize=500):
         print('\n')
         print('Building "kalantzis" model and compiling functions...')
         network = ann3d_kalantzis_model(input_var)
-    if model == 'keal':
+    elif model == 'keal':
         print('\n')
         print('Preparing "keal" data set...')
         x_train, y_train, x_val, y_val, x_test, y_test = ann3d_keal_dataset(dose, fluence)
@@ -163,6 +163,7 @@ def main(model='keal', num_epochs=100, batchsize=500):
     feed_forward = theano.function([input_var], test_prediction)
 
     # Finally, launch the training loop.
+
     print('\n')
     print("Starting training...")
     # We iterate over epochs:
@@ -176,6 +177,12 @@ def main(model='keal', num_epochs=100, batchsize=500):
             inputs, targets = batch
             train_err += train_fn(inputs, targets)
             train_batches += 1
+
+        # Print weights and biases to file
+        #f = open('workfile', 'w')
+        #f.seek(0)
+        #f.write(str(lasagne.layers.get_all_param_values(network)))
+        #f.close()
 
         # And a full pass over the validation data:
         val_err = 0
@@ -191,50 +198,18 @@ def main(model='keal', num_epochs=100, batchsize=500):
         # Then we print the results for this epoch:
         print("Epoch {} of {} took {:.3f}s".format(
             epoch + 1, num_epochs, time.time() - start_time))
-        print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
-        print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+        print("  training loss:\t\t{:.6e}".format(train_err / train_batches))
+        print("  validation loss:\t\t{:.6e}".format(val_err / val_batches))
 
-    predicted_dose = []
-    for i in range(1,dose.shape[0]-1):
-        x_in = [[[[
-            fluence[i,fluence.shape[1]/2,fluence.shape[2]/2],
-            fluence[i-1,fluence.shape[1]/2,fluence.shape[2]/2],
-            fluence[i+1,fluence.shape[1]/2,fluence.shape[2]/2],
-            fluence[i,fluence.shape[1]/2-1,fluence.shape[2]/2],
-            fluence[i,fluence.shape[1]/2+1,fluence.shape[2]/2],
-            fluence[i,fluence.shape[1]/2,fluence.shape[2]/2-1],
-            fluence[i,fluence.shape[1]/2,fluence.shape[2]/2+1],
-            float(i)/fluence.shape[0],
-            0,
-            0
-            ]]]]
-        x_in = np.array(x_in, dtype=np.float32)
-        ff = (feed_forward(x_in))
-        predicted_dose.append(ff[0])
-    plt.plot(range(0,dose.shape[0]), dose[:,dose.shape[1]/2,dose.shape[2]/2],
-             range(1,dose.shape[0]-1), predicted_dose)
-    plt.show()
-
-    predicted_dose = []
-    for i in range(1,dose.shape[1]-1):
-        x_in = [[[[
-            fluence[fluence.shape[0]/2,i,fluence.shape[2]/2],
-            fluence[fluence.shape[0]/2-1,i,fluence.shape[2]/2],
-            fluence[fluence.shape[0]/2+1,i,fluence.shape[2]/2],
-            fluence[fluence.shape[0]/2,i-1,fluence.shape[2]/2],
-            fluence[fluence.shape[0]/2,i+1,fluence.shape[2]/2],
-            fluence[fluence.shape[0]/2,i,fluence.shape[2]/2-1],
-            fluence[fluence.shape[0]/2,i,fluence.shape[2]/2+1],
-            0.5,
-            float(i)/fluence.shape[1] - 0.5,
-            0
-            ]]]]
-        x_in = np.array(x_in, dtype=np.float32)
-        ff = (feed_forward(x_in))
-        predicted_dose.append(ff[0])
-    plt.plot(range(0,dose.shape[1]), dose[dose.shape[0]/2,:,dose.shape[2]/2],
-             range(1,dose.shape[1]-1), predicted_dose)
-    plt.show()
+    if model == 'k3d':
+        ann3d_kalantzis_plot_pdd(dose, fluence, feed_forward)
+        ann3d_kalantzis_plot_profile(dose, fluence, feed_forward)
+    elif model == 'keal':
+        ann3d_keal_plot_pdd(dose, fluence, feed_forward)
+        ann3d_keal_plot_profile(dose, fluence, feed_forward)
+    else:
+        print("Unrecognized model type %r." % model)
+        return
 
     # After training, we compute and print the test error:
     test_err = 0
@@ -247,7 +222,7 @@ def main(model='keal', num_epochs=100, batchsize=500):
         test_acc += acc
         test_batches += 1
     print("Final results:")
-    print("  test loss:\t\t\t{:.6f}".format(test_err / test_batches))
+    print("  test loss:\t\t\t{:.6e}".format(test_err / test_batches))
 
     # Optionally, you could now dump the network weights to a file like this:
     # np.savez('model.npz', *lasagne.layers.get_all_param_values(network))

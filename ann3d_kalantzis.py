@@ -12,6 +12,7 @@ comment
 '''
 
 import numpy as np
+import matplotlib.pyplot as plt
 import lasagne
 
 def ann3d_kalantzis_dataset(dose, fluence):
@@ -34,16 +35,16 @@ def ann3d_kalantzis_dataset(dose, fluence):
     for i in range(len(coord_list)):
         c = coord_list[i]
         x_tmp[i][0][0] = [
+            float(c[0])/fluence.shape[0],
+            float(c[1])/fluence.shape[1] - 0.5,
+            float(c[2])/fluence.shape[2] - 0.5,
             fluence[c[0],c[1],c[2]],
             fluence[c[0]-1,c[1],c[2]],
             fluence[c[0]+1,c[1],c[2]],
             fluence[c[0],c[1]-1,c[2]],
             fluence[c[0],c[1]+1,c[2]],
             fluence[c[0],c[1],c[2]-1],
-            fluence[c[0],c[1],c[2]+1],
-            float(c[0])/fluence.shape[0],
-            float(c[1])/fluence.shape[1] - 0.5,
-            float(c[2])/fluence.shape[2] - 0.5
+            fluence[c[0],c[1],c[2]+1]
             ]
         y_tmp[i] = [dose[c[0],c[1],c[2]]]
 
@@ -101,3 +102,47 @@ def ann3d_kalantzis_model(input_var=None):
     # Each layer is linked to its incoming layer(s), so we only need to pass
     # the output layer to give access to a network in Lasagne:
     return l_out
+
+def ann3d_kalantzis_plot_pdd(dose, fluence, feed_forward):
+        predicted_dose = []
+        for i in range(1,dose.shape[0]-1):
+            x_in = [[[[
+                float(i)/fluence.shape[0],
+                0,
+                0,
+                fluence[i,fluence.shape[1]/2,fluence.shape[2]/2],
+                fluence[i-1,fluence.shape[1]/2,fluence.shape[2]/2],
+                fluence[i+1,fluence.shape[1]/2,fluence.shape[2]/2],
+                fluence[i,fluence.shape[1]/2-1,fluence.shape[2]/2],
+                fluence[i,fluence.shape[1]/2+1,fluence.shape[2]/2],
+                fluence[i,fluence.shape[1]/2,fluence.shape[2]/2-1],
+                fluence[i,fluence.shape[1]/2,fluence.shape[2]/2+1]
+                ]]]]
+            x_in = np.array(x_in, dtype=np.float32)
+            ff = (feed_forward(x_in))
+            predicted_dose.append(ff[0])
+        plt.plot(range(0,dose.shape[0]), dose[:,dose.shape[1]/2,dose.shape[2]/2],
+                 range(1,dose.shape[0]-1), predicted_dose)
+        plt.show()
+
+def ann3d_kalantzis_plot_profile(dose, fluence, feed_forward):
+        predicted_dose = []
+        for i in range(1,dose.shape[1]-1):
+            x_in = [[[[
+                0.5,
+                float(i)/fluence.shape[1] - 0.5,
+                0,
+                fluence[fluence.shape[0]/2,i,fluence.shape[2]/2],
+                fluence[fluence.shape[0]/2-1,i,fluence.shape[2]/2],
+                fluence[fluence.shape[0]/2+1,i,fluence.shape[2]/2],
+                fluence[fluence.shape[0]/2,i-1,fluence.shape[2]/2],
+                fluence[fluence.shape[0]/2,i+1,fluence.shape[2]/2],
+                fluence[fluence.shape[0]/2,i,fluence.shape[2]/2-1],
+                fluence[fluence.shape[0]/2,i,fluence.shape[2]/2+1]
+                ]]]]
+            x_in = np.array(x_in, dtype=np.float32)
+            ff = (feed_forward(x_in))
+            predicted_dose.append(ff[0])
+        plt.plot(range(0,dose.shape[1]), dose[dose.shape[0]/2,:,dose.shape[2]/2],
+                 range(1,dose.shape[1]-1), predicted_dose)
+        plt.show()
