@@ -15,7 +15,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import lasagne
 
-MARGIN = 1
+INPUT_MARGIN = 1
+OUTPUT_MARGIN = 0
 
 def ann3d_keal_dataset(dose, fluence):
     assert dose.shape == fluence.shape
@@ -24,15 +25,15 @@ def ann3d_keal_dataset(dose, fluence):
     # voxels are included as input to the neural network. We create a set of
     # all usable coordinates:
     coord_list = []
-    for i in range(MARGIN, dose.shape[0]-MARGIN):
-        for j in range(MARGIN, dose.shape[1]-MARGIN):
-            for k in range(MARGIN, dose.shape[2]-MARGIN):
+    for i in range(INPUT_MARGIN, dose.shape[0]-INPUT_MARGIN):
+        for j in range(INPUT_MARGIN, dose.shape[1]-INPUT_MARGIN):
+            for k in range(INPUT_MARGIN, dose.shape[2]-INPUT_MARGIN):
                 coord_list.append([i,j,k])
 
     coord_list = np.array(coord_list)
     np.random.shuffle(coord_list)
 
-    x_list = np.zeros((len(coord_list),1,1,3+(2*MARGIN+1)**3))
+    x_list = np.zeros((len(coord_list),1,1,3+(2*INPUT_MARGIN+1)**3))
     y_list = np.zeros((len(coord_list),1))
     for i in range(len(coord_list)):
         c = coord_list[i]
@@ -41,9 +42,9 @@ def ann3d_keal_dataset(dose, fluence):
             float(c[1])/fluence.shape[1] - 0.5,
             float(c[2])/fluence.shape[2] - 0.5
             ]
-        for ii in range(-MARGIN, MARGIN+1):
-            for jj in range(-MARGIN, MARGIN+1):
-                for kk in range(-MARGIN, MARGIN+1):
+        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                     x_tmp += [fluence[c[0]+ii,c[1]+jj,c[2]+kk]]
 
         x_list[i][0][0] = x_tmp
@@ -72,7 +73,8 @@ def ann3d_keal_model(input_var=None):
     # Input layer, specifying the expected input shape of the network
     # (unspecified batchsize, 1 channel, 1 rows and many columns) and
     # linking it to the given Theano variable `input_var`, if any:
-    l_in = lasagne.layers.InputLayer(shape=(None,1,1,3+(2*MARGIN+1)**3), input_var=input_var)
+    l_in = lasagne.layers.InputLayer(shape=(None,1,1,3+(2*INPUT_MARGIN+1)**3),
+                                        input_var=input_var)
 
     # Apply 20% dropout to the input data:
     l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.0)
@@ -105,17 +107,12 @@ def ann3d_keal_model(input_var=None):
     return l_out
 
 def ann3d_keal_plot_pdd(dose, fluence, feed_forward):
-    MARGIN = 1
     predicted_dose = []
     for i in range(1,dose.shape[0]-1):
-        x_in = [[[[
-            float(i)/fluence.shape[0],
-            0,
-            0
-            ]]]]
-        for ii in range(-MARGIN, MARGIN+1):
-            for jj in range(-MARGIN, MARGIN+1):
-                for kk in range(-MARGIN, MARGIN+1):
+        x_in = [[[[float(i)/fluence.shape[0], 0, 0]]]]
+        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                     x_in[0][0][0] += [fluence[
                             i + ii,
                             fluence.shape[1]/2 + jj,
@@ -132,14 +129,10 @@ def ann3d_keal_plot_pdd(dose, fluence, feed_forward):
 def ann3d_keal_plot_profile(dose, fluence, feed_forward):
     predicted_dose = []
     for i in range(1,dose.shape[1]-1):
-        x_in = [[[[
-            0,
-            float(i)/fluence.shape[1] - 0.5,
-            0
-            ]]]]
-        for ii in range(-MARGIN, MARGIN+1):
-            for jj in range(-MARGIN, MARGIN+1):
-                for kk in range(-MARGIN, MARGIN+1):
+        x_in = [[[[0, float(i)/fluence.shape[1] - 0.5, 0]]]]
+        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                     x_in[0][0][0] += [fluence[
                             fluence.shape[0]/2 + ii,
                             i + jj,

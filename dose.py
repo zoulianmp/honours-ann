@@ -29,34 +29,13 @@ from ann3d_kalantzis import *
 from ann3d_keal import *
 
 VOXEL_SIZE = (0.125,0.125,0.125)    # voxel size (z,y,x) [cm]
-FIELD_SIZE = (5.0,5.0)              # field size (x,y) [cm]
+FIELD_SIZE = ((3.0,3.0),(5.0,5.0))  # field size (x,y) [cm]
 SS_DIST = 100.0                     # source-surface distance [cm]
 
 MASS_ATT_AIR = 2.522e-2         # mass attenuation of air [cm^2/g]
 MASS_ATT_WAT = 2.770e-2         # mass attenuation of water [cm^2/g]
 DENSITY_AIR = 1.225e-3          # density of air [g/cm^3]
 DENSITY_WAT = 1.000             # density of water [g/cm^3]
-
-def import_dose(root_dir, unit='dose'):
-    if unit == 'dose':
-        unit = '/output-Dose.mhd'
-    elif unit == 'energy':
-        unit = '/output-Edep.mhd'
-    else:
-        print("Unrecognized measurement type %r." % unit)
-        return
-
-    dirs = os.walk(root_dir).next()[1]
-    n_dir = 0
-    for path in dirs:
-        n_dir += 1
-        ddata = mhd.load_mhd(root_dir + '/' + path + unit)[0]
-        if n_dir == 1:
-            data = ddata
-        else:
-            data += ddata
-
-    return data
 
 def generate_fluence(vol_shape, vox_size, field_size):
     fluence = np.zeros(vol_shape)
@@ -81,7 +60,7 @@ def generate_fluence(vol_shape, vox_size, field_size):
     fluence = fluence*np.less_equal(X,field_size[0]*Z/(2.0*SS_DIST))
     fluence = fluence*np.less_equal(Y,field_size[1]*Z/(2.0*SS_DIST))
 
-    return fluence
+    return fluence/np.max(fluence)
 
 def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
     assert len(inputs) == len(targets)
@@ -96,16 +75,22 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
         yield inputs[excerpt], targets[excerpt]
 
 def main(model='keal', num_epochs=100, batchsize=500):
-    # Load the dose data and calculate the fluence
     print('\n')
     print('Loading dose data...')
-    dose = import_dose('5cm', 'energy')
-    dose = dose/np.max(dose)
+
+    # Load a dose volume from a single file
+    #dose = [mhd.load_mhd('data/combined_5cm_water_energy.mhd')[0]]
+
+    # Or a set of volumes from multiple files
+    dose = []
+    dose += [mhd.load_mhd('data/combined_3cm_water_energy.mhd')[0]]
+    dose += [mhd.load_mhd('data/combined_5cm_water_energy.mhd')[0]]
 
     print('\n')
     print('Calculating fluence...')
-    fluence = generate_fluence(dose.shape, VOXEL_SIZE, FIELD_SIZE)
-    fluence = fluence/np.max(fluence)
+    fluence = []
+    for fs in FIELD_SIZE:
+        fluence += [generate_fluence(dose[0].shape, VOXEL_SIZE, fs)]
 
     # Prepare Theano variables for inputs and targets
     input_var = T.tensor4('inputs')
@@ -115,14 +100,14 @@ def main(model='keal', num_epochs=100, batchsize=500):
     if model == 'k3d':
         print('\n')
         print('Preparing "kalantzis" data set...')
-        x_train, y_train, x_val, y_val, x_test, y_test = ann3d_kalantzis_dataset(dose, fluence)
+        x_train, y_train, x_val, y_val, x_test, y_test = ann3d_kalantzis_dataset(dose[0], fluence[0])
         print('\n')
         print('Building "kalantzis" model and compiling functions...')
         network = ann3d_kalantzis_model(input_var)
     elif model == 'keal':
         print('\n')
         print('Preparing "keal" data set...')
-        x_train, y_train, x_val, y_val, x_test, y_test = ann3d_keal_dataset(dose, fluence)
+        x_train, y_train, x_val, y_val, x_test, y_test = ann3d_keal_dataset(dose[0], fluence[0])
         print('\n')
         print('Building "keal" model and compiling functions...')
         network = ann3d_keal_model(input_var)
@@ -202,11 +187,11 @@ def main(model='keal', num_epochs=100, batchsize=500):
         print("  validation loss:\t\t{:.6e}".format(val_err / val_batches))
 
     if model == 'k3d':
-        ann3d_kalantzis_plot_pdd(dose, fluence, feed_forward)
-        ann3d_kalantzis_plot_profile(dose, fluence, feed_forward)
+        ann3d_kalantzis_plot_pdd(dose[0], fluence[0], feed_forward)
+        ann3d_kalantzis_plot_profile(dose[0], fluence[0], feed_forward)
     elif model == 'keal':
-        ann3d_keal_plot_pdd(dose, fluence, feed_forward)
-        ann3d_keal_plot_profile(dose, fluence, feed_forward)
+        ann3d_keal_plot_pdd(dose[0], fluence[0], feed_forward)
+        ann3d_keal_plot_profile(dose[0], fluence[0], feed_forward)
     else:
         print("Unrecognized model type %r." % model)
         return
