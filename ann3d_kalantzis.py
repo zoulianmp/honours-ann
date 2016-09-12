@@ -13,40 +13,33 @@ comment
 
 import numpy as np
 import matplotlib.pyplot as plt
+import sampling_methods as sm
 import lasagne
 
 def ann3d_kalantzis_dataset(dose, fluence):
-    assert dose.shape == fluence.shape
-
     # The outer voxels of the dose tensors are unusable since the neighbouring
-    # voxels are included as input to the neural network. We create a list of
+    # voxels are included as input to the neural network. We create a set of
     # all usable coordinates:
-    coord_list = []
-    for i in range(1, dose.shape[0]-1):
-        for j in range(1, dose.shape[1]-1):
-            for k in range(1, dose.shape[2]-1):
-                coord_list.append([i,j,k])
-
-    coord_list = np.array(coord_list)
-    np.random.shuffle(coord_list)
+    coord_list = sm.all_coords_shuffled(dose, 1, 2000000)
+    coord_list = sm.monte_carlo(dose, 1, 2000000)
 
     x_tmp = np.zeros((len(coord_list),1,1,10))
     y_tmp = np.zeros((len(coord_list),1))
     for i in range(len(coord_list)):
         c = coord_list[i]
         x_tmp[i][0][0] = [
-            float(c[0])/fluence.shape[0],
-            float(c[1])/fluence.shape[1] - 0.5,
-            float(c[2])/fluence.shape[2] - 0.5,
-            fluence[c[0],c[1],c[2]],
-            fluence[c[0]-1,c[1],c[2]],
-            fluence[c[0]+1,c[1],c[2]],
-            fluence[c[0],c[1]-1,c[2]],
-            fluence[c[0],c[1]+1,c[2]],
-            fluence[c[0],c[1],c[2]-1],
-            fluence[c[0],c[1],c[2]+1]
+            float(c[1])/fluence[c[0]].shape[0],
+            float(c[2])/fluence[c[0]].shape[1] - 0.5,
+            float(c[3])/fluence[c[0]].shape[2] - 0.5,
+            fluence[c[0]][c[1],c[2],c[3]],
+            fluence[c[0]][c[1]-1,c[2],c[3]],
+            fluence[c[0]][c[1]+1,c[2],c[3]],
+            fluence[c[0]][c[1],c[2]-1,c[3]],
+            fluence[c[0]][c[1],c[2]+1,c[3]],
+            fluence[c[0]][c[1],c[2],c[3]-1],
+            fluence[c[0]][c[1],c[2],c[3]+1]
             ]
-        y_tmp[i] = [dose[c[0],c[1],c[2]]]
+        y_tmp[i] = [dose[c[0]][c[1],c[2],c[3]]]
 
     # Use 70% of usable coordinates as training data, 15% as valaidation
     # data and 15% as testing data.

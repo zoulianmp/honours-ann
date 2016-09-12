@@ -19,19 +19,10 @@ INPUT_MARGIN = 1
 OUTPUT_MARGIN = 0
 
 def ann3d_keal_dataset(dose, fluence):
-    assert dose.shape == fluence.shape
-
     # The outer voxels of the dose tensors are unusable since the neighbouring
     # voxels are included as input to the neural network. We create a set of
     # all usable coordinates:
-    coord_list = []
-    for i in range(INPUT_MARGIN, dose.shape[0]-INPUT_MARGIN):
-        for j in range(INPUT_MARGIN, dose.shape[1]-INPUT_MARGIN):
-            for k in range(INPUT_MARGIN, dose.shape[2]-INPUT_MARGIN):
-                coord_list.append([i,j,k])
-
-    coord_list = np.array(coord_list)
-    np.random.shuffle(coord_list)
+    coord_list = sm.all_coords_shuffled(dose, INPUT_MARGIN)
 
     x_list = np.zeros((len(coord_list),1,1,3+(2*INPUT_MARGIN+1)**3))
     y_list = np.zeros((len(coord_list),1))

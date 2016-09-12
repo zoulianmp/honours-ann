@@ -14,11 +14,8 @@ comment
 from __future__ import print_function
 
 import sys
-import os
 import time
-
 import mhd_utils_3d as mhd
-
 import numpy as np
 import matplotlib.pyplot as plt
 import theano
@@ -83,14 +80,15 @@ def main(model='keal', num_epochs=100, batchsize=500):
 
     # Or a set of volumes from multiple files
     dose = []
-    dose += [mhd.load_mhd('data/combined_3cm_water_energy.mhd')[0]]
-    dose += [mhd.load_mhd('data/combined_5cm_water_energy.mhd')[0]]
+    dose += [mhd.load_mhd('energy/combined_3cm_water_energy.mhd')[0]]
+    dose += [mhd.load_mhd('energy/combined_5cm_water_energy.mhd')[0]]
 
+    # Calculate the fluence for each field size
     print('\n')
     print('Calculating fluence...')
     fluence = []
-    for fs in FIELD_SIZE:
-        fluence += [generate_fluence(dose[0].shape, VOXEL_SIZE, fs)]
+    for i in range(len(FIELD_SIZE)):
+        fluence += [generate_fluence(dose[i].shape, VOXEL_SIZE, FIELD_SIZE[i])]
 
     # Prepare Theano variables for inputs and targets
     input_var = T.tensor4('inputs')
@@ -100,14 +98,14 @@ def main(model='keal', num_epochs=100, batchsize=500):
     if model == 'k3d':
         print('\n')
         print('Preparing "kalantzis" data set...')
-        x_train, y_train, x_val, y_val, x_test, y_test = ann3d_kalantzis_dataset(dose[0], fluence[0])
+        x_train, y_train, x_val, y_val, x_test, y_test = ann3d_kalantzis_dataset(dose, fluence)
         print('\n')
         print('Building "kalantzis" model and compiling functions...')
         network = ann3d_kalantzis_model(input_var)
     elif model == 'keal':
         print('\n')
         print('Preparing "keal" data set...')
-        x_train, y_train, x_val, y_val, x_test, y_test = ann3d_keal_dataset(dose[0], fluence[0])
+        x_train, y_train, x_val, y_val, x_test, y_test = ann3d_keal_dataset(dose, fluence)
         print('\n')
         print('Building "keal" model and compiling functions...')
         network = ann3d_keal_model(input_var)
@@ -148,7 +146,6 @@ def main(model='keal', num_epochs=100, batchsize=500):
     feed_forward = theano.function([input_var], test_prediction)
 
     # Finally, launch the training loop.
-
     print('\n')
     print("Starting training...")
     # We iterate over epochs:
