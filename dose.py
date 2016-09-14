@@ -26,7 +26,9 @@ from ann3d_kalantzis import *
 from ann3d_keal import *
 
 VOXEL_SIZE = (0.125,0.125,0.125)    # voxel size (z,y,x) [cm]
-FIELD_SIZE = ((3.0,3.0),(5.0,5.0))  # field size (x,y) [cm]
+FIELD_SIZE = ((3.0,3.0),
+              (5.0,5.0),
+              (10.0,10.0))          # field size (x,y) [cm]
 SS_DIST = 100.0                     # source-surface distance [cm]
 
 MASS_ATT_AIR = 2.522e-2         # mass attenuation of air [cm^2/g]
@@ -82,6 +84,7 @@ def main(model='keal', num_epochs=100, batchsize=500):
     dose = []
     dose += [mhd.load_mhd('energy/combined_3cm_water_energy.mhd')[0]]
     dose += [mhd.load_mhd('energy/combined_5cm_water_energy.mhd')[0]]
+    dose += [mhd.load_mhd('energy/combined_10cm_water_energy.mhd')[0]]
 
     # Calculate the fluence for each field size
     print('\n')

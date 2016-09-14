@@ -20,8 +20,7 @@ def ann3d_kalantzis_dataset(dose, fluence):
     # The outer voxels of the dose tensors are unusable since the neighbouring
     # voxels are included as input to the neural network. We create a set of
     # all usable coordinates:
-    coord_list = sm.all_coords_shuffled(dose, 1, 2000000)
-    coord_list = sm.monte_carlo(dose, 1, 2000000)
+    coord_list = sm.all_coords_shuffled(dose, 1)
 
     x_tmp = np.zeros((len(coord_list),1,1,10))
     y_tmp = np.zeros((len(coord_list),1))

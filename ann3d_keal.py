@@ -13,33 +13,41 @@ comment
 
 import numpy as np
 import matplotlib.pyplot as plt
+import sampling_methods as sm
 import lasagne
 
-INPUT_MARGIN = 1
+INPUT_MARGIN = 2
 OUTPUT_MARGIN = 0
 
 def ann3d_keal_dataset(dose, fluence):
     # The outer voxels of the dose tensors are unusable since the neighbouring
     # voxels are included as input to the neural network. We create a set of
     # all usable coordinates:
-    coord_list = sm.all_coords_shuffled(dose, INPUT_MARGIN)
+    coord_list = sm.monte_carlo(dose, INPUT_MARGIN, 2000000)
 
-    x_list = np.zeros((len(coord_list),1,1,3+(2*INPUT_MARGIN+1)**3))
-    y_list = np.zeros((len(coord_list),1))
+    x_list = np.zeros((len(coord_list),1,1,0+(2*INPUT_MARGIN+1)**3))
+    y_list = np.zeros((len(coord_list),(2*OUTPUT_MARGIN+1)**3))
     for i in range(len(coord_list)):
         c = coord_list[i]
-        x_tmp = [
-            float(c[0])/fluence.shape[0],
-            float(c[1])/fluence.shape[1] - 0.5,
-            float(c[2])/fluence.shape[2] - 0.5
-            ]
+        #x_tmp = [
+        #    float(c[1])/fluence[c[0]].shape[0],
+        #    float(c[2])/fluence[c[0]].shape[1] - 0.5,
+        #    float(c[3])/fluence[c[0]].shape[2] - 0.5
+        #    ]
+        x_tmp = []
         for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
             for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                 for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                    x_tmp += [fluence[c[0]+ii,c[1]+jj,c[2]+kk]]
+                    x_tmp += [fluence[c[0]][c[1]+ii,c[2]+jj,c[3]+kk]]
+
+        y_tmp = []
+        for ii in range(-OUTPUT_MARGIN, OUTPUT_MARGIN+1):
+            for jj in range(-OUTPUT_MARGIN, OUTPUT_MARGIN+1):
+                for kk in range(-OUTPUT_MARGIN, OUTPUT_MARGIN+1):
+                    y_tmp += [dose[c[0]][c[1]+ii,c[2]+jj,c[3]+kk]]
 
         x_list[i][0][0] = x_tmp
-        y_list[i] = [dose[c[0],c[1],c[2]]]
+        y_list[i] = y_tmp
 
     # Use 70% of usable coordinates as training data, 15% as valaidation
     # data and 15% as testing data.
@@ -64,33 +72,30 @@ def ann3d_keal_model(input_var=None):
     # Input layer, specifying the expected input shape of the network
     # (unspecified batchsize, 1 channel, 1 rows and many columns) and
     # linking it to the given Theano variable `input_var`, if any:
-    l_in = lasagne.layers.InputLayer(shape=(None,1,1,3+(2*INPUT_MARGIN+1)**3),
+    l_in = lasagne.layers.InputLayer(shape=(None,1,1, 0+(2*INPUT_MARGIN+1)**3),
                                         input_var=input_var)
 
-    # Apply 20% dropout to the input data:
-    l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.0)
+    # Apply 0% dropout to the input data:
+    #l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.0)
 
-    # Add a fully-connected layer of 300 units, using the linear rectifier, and
+    # Add a fully-connected layer of 800 units, using the linear rectifier, and
     # initializing weights with Glorot's scheme (which is the default anyway):
     l_hid1 = lasagne.layers.DenseLayer(
-            l_in_drop, num_units=300,
+            l_in, num_units=1000,
             nonlinearity=lasagne.nonlinearities.rectify,
             W=lasagne.init.GlorotUniform())
 
     # We'll now add dropout of 20%:
-    l_hid1_drop = lasagne.layers.DropoutLayer(l_hid1, p=0.2)
+    #l_hid1_drop = lasagne.layers.DropoutLayer(l_hid1, p=0.2)
 
-    # A 5-unit layer:
     l_hid2 = lasagne.layers.DenseLayer(
-            l_hid1_drop, num_units=50,
-            nonlinearity=lasagne.nonlinearities.rectify)
-
-    # 20% dropout again:
-    l_hid2_drop = lasagne.layers.DropoutLayer(l_hid2, p=0.2)
+            l_hid1, num_units=1000,
+            nonlinearity=lasagne.nonlinearities.rectify,
+            W=lasagne.init.GlorotUniform())
 
     # Finally, we'll add the fully-connected output layer, of 1 rectifier unit:
     l_out = lasagne.layers.DenseLayer(
-            l_hid2_drop, num_units=1,
+            l_hid2, num_units=(2*OUTPUT_MARGIN+1)**3,
             nonlinearity=lasagne.nonlinearities.rectify)
 
     # Each layer is linked to its incoming layer(s), so we only need to pass
@@ -99,8 +104,9 @@ def ann3d_keal_model(input_var=None):
 
 def ann3d_keal_plot_pdd(dose, fluence, feed_forward):
     predicted_dose = []
-    for i in range(1,dose.shape[0]-1):
-        x_in = [[[[float(i)/fluence.shape[0], 0, 0]]]]
+    for i in range(INPUT_MARGIN, dose.shape[0]-INPUT_MARGIN):
+        #x_in = [[[[float(i)/fluence.shape[0], 0, 0]]]]
+        x_in = []
         for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
             for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                 for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
@@ -111,16 +117,17 @@ def ann3d_keal_plot_pdd(dose, fluence, feed_forward):
                             ]]
 
         x_in = np.array(x_in, dtype=np.float32)
-        ff = (feed_forward(x_in))
+        ff = feed_forward(x_in)
         predicted_dose.append(ff[0])
     plt.plot(range(0,dose.shape[0]), dose[:,dose.shape[1]/2,dose.shape[2]/2],
-             range(1,dose.shape[0]-1), predicted_dose)
+             range(INPUT_MARGIN,dose.shape[0]-INPUT_MARGIN), predicted_dose)
     plt.show()
 
 def ann3d_keal_plot_profile(dose, fluence, feed_forward):
     predicted_dose = []
-    for i in range(1,dose.shape[1]-1):
-        x_in = [[[[0, float(i)/fluence.shape[1] - 0.5, 0]]]]
+    for i in range(INPUT_MARGIN, dose.shape[1]-INPUT_MARGIN):
+        #x_in = [[[[0, float(i)/fluence.shape[1] - 0.5, 0]]]]
+        x_in = []
         for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
             for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                 for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
@@ -131,8 +138,8 @@ def ann3d_keal_plot_profile(dose, fluence, feed_forward):
                             ]]
 
         x_in = np.array(x_in, dtype=np.float32)
-        ff = (feed_forward(x_in))
+        ff = feed_forward(x_in)
         predicted_dose.append(ff[0])
     plt.plot(range(0,dose.shape[1]), dose[dose.shape[0]/2,:,dose.shape[2]/2],
-             range(1,dose.shape[1]-1), predicted_dose)
+             range(INPUT_MARGIN,dose.shape[1]-INPUT_MARGIN), predicted_dose)
     plt.show()

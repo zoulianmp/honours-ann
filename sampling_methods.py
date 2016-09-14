@@ -18,7 +18,6 @@ import numpy as np
 import numpy.random as rnd
 
 def all_coords_shuffled(dose, margin, n_samples=None):
-    start_time = time.time()
     coord_list = []
     for d in range(len(dose)):
         for i in range(margin, dose[d].shape[0]-margin):
@@ -29,11 +28,9 @@ def all_coords_shuffled(dose, margin, n_samples=None):
     assert n_samples <= len(coord_list)
     coord_list = np.array(coord_list)
     rnd.shuffle(coord_list)
-    print(time.time() - start_time)
     return coord_list[0:n_samples]
 
 def monte_carlo(dose, margin, n_samples):
-    start_time = time.time()
     coord_list = []
 
     for n in range(n_samples):
@@ -45,7 +42,6 @@ def monte_carlo(dose, margin, n_samples):
         coord_list.append([d,i,j,k])
 
     coord_list = np.array(coord_list)
-    print(time.time() - start_time)
     return coord_list
 
 def latin_hypercube(dose, margin, n_samples):
