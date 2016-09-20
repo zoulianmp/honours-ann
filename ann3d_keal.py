@@ -23,7 +23,7 @@ def ann3d_keal_dataset(dose, fluence):
     # The outer voxels of the dose tensors are unusable since the neighbouring
     # voxels are included as input to the neural network. We create a set of
     # all usable coordinates:
-    coord_list = sm.monte_carlo(dose, INPUT_MARGIN, 2000000)
+    coord_list = sm.monte_carlo(dose, INPUT_MARGIN, 4194304)
 
     x_list = np.zeros((len(coord_list),1,1,0+(2*INPUT_MARGIN+1)**3))
     y_list = np.zeros((len(coord_list),(2*OUTPUT_MARGIN+1)**3))
@@ -81,7 +81,7 @@ def ann3d_keal_model(input_var=None):
     # Add a fully-connected layer of 800 units, using the linear rectifier, and
     # initializing weights with Glorot's scheme (which is the default anyway):
     l_hid1 = lasagne.layers.DenseLayer(
-            l_in, num_units=1000,
+            l_in, num_units=800,
             nonlinearity=lasagne.nonlinearities.rectify,
             W=lasagne.init.GlorotUniform())
 
@@ -89,7 +89,7 @@ def ann3d_keal_model(input_var=None):
     #l_hid1_drop = lasagne.layers.DropoutLayer(l_hid1, p=0.2)
 
     l_hid2 = lasagne.layers.DenseLayer(
-            l_hid1, num_units=1000,
+            l_hid1, num_units=500,
             nonlinearity=lasagne.nonlinearities.rectify,
             W=lasagne.init.GlorotUniform())
 
@@ -106,7 +106,7 @@ def ann3d_keal_plot_pdd(dose, fluence, feed_forward):
     predicted_dose = []
     for i in range(INPUT_MARGIN, dose.shape[0]-INPUT_MARGIN):
         #x_in = [[[[float(i)/fluence.shape[0], 0, 0]]]]
-        x_in = []
+        x_in = [[[[]]]]
         for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
             for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                 for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
@@ -127,7 +127,7 @@ def ann3d_keal_plot_profile(dose, fluence, feed_forward):
     predicted_dose = []
     for i in range(INPUT_MARGIN, dose.shape[1]-INPUT_MARGIN):
         #x_in = [[[[0, float(i)/fluence.shape[1] - 0.5, 0]]]]
-        x_in = []
+        x_in = [[[[]]]]
         for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
             for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                 for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
