@@ -30,7 +30,7 @@ VOXEL_SIZE = (0.125,0.125,0.125)    # voxel size (z,y,x) [cm]
 FIELD_SIZE = (( 2.0, 2.0),
               ( 3.0, 3.0),
               ( 5.0, 5.0),
-              (10.0,10.0),
+              #(10.0,10.0),
               (20.0,20.0),
               (40.0,40.0))          # field size (x,y) [cm]
 SS_DIST = 100.0                     # source-surface distance [cm]
@@ -89,7 +89,7 @@ def main(model='keal', num_epochs=100, batchsize=500):
     dose += [mhd.load_mhd('energy/combined_2cm_water_energy.mhd')[0]]
     dose += [mhd.load_mhd('energy/combined_3cm_water_energy.mhd')[0]]
     dose += [mhd.load_mhd('energy/combined_5cm_water_energy.mhd')[0]]
-    dose += [mhd.load_mhd('energy/combined_10cm_water_energy.mhd')[0]]
+    #dose += [mhd.load_mhd('energy/combined_10cm_water_energy.mhd')[0]]
     dose += [mhd.load_mhd('energy/combined_20cm_water_energy.mhd')[0]]
     dose += [mhd.load_mhd('energy/combined_40cm_water_energy.mhd')[0]]
 
@@ -127,7 +127,7 @@ def main(model='keal', num_epochs=100, batchsize=500):
     # to minimize (for our multi-class problem, it is the cross-entropy loss):
     prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.squared_error(prediction, target_var)
-    loss = loss.mean()
+    loss = loss.mean().sqrt()
     # We could add some weight decay as well here, see lasagne.regularization.
 
     # Create update expressions for training, i.e., how to modify the

@@ -26,9 +26,10 @@ from ann3d_kalantzis import *
 from ann3d_keal import *
 
 VOXEL_SIZE = (0.125,0.125,0.125)    # voxel size (z,y,x) [cm]
-FIELD_SIZE = (( 3.0, 3.0),
+FIELD_SIZE = (#( 3.0, 3.0),
               ( 5.0, 5.0),
-              (10.0,10.0))          # field size (x,y) [cm]
+              #(10.0,10.0)
+              )          # field size (x,y) [cm]
 SS_DIST = 100.0                     # source-surface distance [cm]
 
 MASS_ATT_AIR = 2.522e-2         # mass attenuation of air [cm^2/g]
@@ -99,8 +100,9 @@ def main(filename, model='keal'):
         lasagne.layers.set_all_param_values(network, param_values)
         test_prediction = lasagne.layers.get_output(network, deterministic=True)
         feed_forward = theano.function([input_var], test_prediction)
-        ann3d_kalantzis_plot_pdd(dose[0], fluence[0], feed_forward)
-        ann3d_kalantzis_plot_profile(dose[0], fluence[0], feed_forward)
+        for i in range(len(FIELD_SIZE)):
+            ann3d_kalantzis_plot_pdd(dose[i], fluence[i], feed_forward)
+            ann3d_kalantzis_plot_profile(dose[i], fluence[i], feed_forward)
     elif model == 'keal':
         print('\n')
         print('Building "keal" model and compiling functions...')
@@ -108,8 +110,9 @@ def main(filename, model='keal'):
         lasagne.layers.set_all_param_values(network, param_values)
         test_prediction = lasagne.layers.get_output(network, deterministic=True)
         feed_forward = theano.function([input_var], test_prediction)
-        ann3d_keal_plot_pdd(dose[0], fluence[0], feed_forward)
-        ann3d_keal_plot_profile(dose[0], fluence[0], feed_forward)
+        for i in range(len(FIELD_SIZE)):
+            ann3d_keal_plot_pdd(dose[i], fluence[i], feed_forward)
+            ann3d_keal_plot_profile(dose[i], fluence[i], feed_forward)
     else:
         print("Unrecognized model type %r." % model)
         return
