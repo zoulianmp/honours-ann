@@ -74,16 +74,18 @@ def main(field_size, volume_file, output_file=None):
         output_file = 'fluence_' + now + '.mhd'
 
     print_progress(0,3)
-    vol = mhd.load_mhd(volume_file)[0]
+    meta = mhd.read_meta_header(volume_file)
+    vol = [int(i) for i in meta['DimSize'].split()]
+    vol.reverse()
     print_progress(1,3)
-    fluence = generate_fluence(vol.shape, VOXEL_SIZE, (field_size,field_size))
+    fluence = generate_fluence(vol, VOXEL_SIZE, (field_size,field_size))
     print_progress(2,3)
     mhd.write_mhd(output_file, fluence, fluence.shape, VOXEL_SIZE)
     print_progress(3,3)
 
 if __name__ == '__main__':
     if ('--help' in sys.argv) or (len(sys.argv) < 3):
-        print("Generates an MHD file containing the normalised fluence")
+        print("Generates an MHD file containing the relative fluence")
         print("defined by a given field size and volume.")
         print("Usage: %s <FIELD SIZE> <VOLUME> [OUTPUT FILE]" % sys.argv[0])
         print()
