@@ -79,6 +79,9 @@ def main(ann3d, density_dir, fluence_dir, dose_dir, output_file=None):
                 print(f)
                 dose += [mhd.load_mhd(os.path.join(dirpath, f))[0]]
 
+    assert len(density) == len(fluence)
+    assert len(fluence) == len(dose)
+
     # Prepare Theano variables for inputs and targets
     input_var = T.tensor4('inputs')
     target_var = T.fmatrix('targets')
@@ -86,7 +89,7 @@ def main(ann3d, density_dir, fluence_dir, dose_dir, output_file=None):
     # Create neural network model (depending on first command line parameter)
     print('\n')
     print('Sampling data set...')
-    x_train, y_train, x_val, y_val, x_test, y_test = ann3d.ann3d_dataset(dose, fluence)
+    x_train, y_train, x_val, y_val, x_test, y_test = ann3d.ann3d_dataset(density, fluence, dose)
 
     print('\n')
     print('Building model and compiling functions...')

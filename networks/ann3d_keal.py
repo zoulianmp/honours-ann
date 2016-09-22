@@ -20,31 +20,33 @@ LEARNING_RATE = 0.001
 NUM_EPOCHS = 100
 BATCHSIZE = 500
 MOMENTUM = 0.07
+N_SAMPLES = 1048576
 
 INPUT_MARGIN = 2
 OUTPUT_MARGIN = 0
 
-def ann3d_dataset(dose, fluence):
+def ann3d_dataset(density, fluence, dose):
     # The outer voxels of the dose tensors are unusable since the neighbouring
     # voxels are included as input to the neural network. We create a set of
-    # all usable coordinates:
-    coord_list = sm.monte_carlo(dose, INPUT_MARGIN, 4194304)
+    # susable coordinates:
+    coord_list = sm.monte_carlo(dose, INPUT_MARGIN, N_SAMPLES)
 
-    x_list = np.zeros((len(coord_list), 1, 1, (2*INPUT_MARGIN+1)**3))
-    y_list = np.zeros((len(coord_list),(2*OUTPUT_MARGIN+1)**3))
+    n_inputs = 2*((2*INPUT_MARGIN+1)**3)
+    x_list = np.zeros((len(coord_list), 1, 1, n_inputs))
+    y_list = np.zeros((len(coord_list), 1))
     for i in range(len(coord_list)):
         c = coord_list[i]
         x_tmp = []
         for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
             for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                 for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                    x_tmp += [fluence[c[0]][c[1]+ii,c[2]+jj,c[3]+kk]]
+                    x_tmp += [density[c[0]][c[1]+ ii, c[2]+jj, c[3]+kk]]
+        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                    x_tmp += [fluence[c[0]][c[1]+ ii, c[2]+jj, c[3]+kk]]
 
-        y_tmp = []
-        for ii in range(-OUTPUT_MARGIN, OUTPUT_MARGIN+1):
-            for jj in range(-OUTPUT_MARGIN, OUTPUT_MARGIN+1):
-                for kk in range(-OUTPUT_MARGIN, OUTPUT_MARGIN+1):
-                    y_tmp += [dose[c[0]][c[1]+ii,c[2]+jj,c[3]+kk]]
+        y_tmp = [dose[c[0]][c[1], c[2], c[3]]]
 
         x_list[i][0][0] = x_tmp
         y_list[i] = y_tmp
@@ -72,7 +74,8 @@ def ann3d_model(input_var=None):
     # Input layer, specifying the expected input shape of the network
     # (unspecified batchsize, 1 channel, 1 rows and many columns) and
     # linking it to the given Theano variable `input_var`, if any:
-    l_in = lasagne.layers.InputLayer(shape=(None, 1, 1, (2*INPUT_MARGIN+1)**3),
+    n_inputs = 2*((2*INPUT_MARGIN+1)**3)
+    l_in = lasagne.layers.InputLayer(shape=(None, 1, 1, n_inputs),
                                         input_var=input_var)
 
     # Apply 0% dropout to the input data:
@@ -102,10 +105,18 @@ def ann3d_model(input_var=None):
     # the output layer to give access to a network in Lasagne:
     return l_out
 
-def ann3d_plot_pdd(dose, fluence, feed_forward):
+def ann3d_plot_pdd(density, fluence, dose, feed_forward):
     predicted_dose = []
     for i in range(INPUT_MARGIN, dose.shape[0]-INPUT_MARGIN):
         x_in = [[[[]]]]
+        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                    x_in[0][0][0] += [density[
+                            i + ii,
+                            density.shape[1]/2 + jj,
+                            density.shape[2]/2 + kk
+                            ]]
         for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
             for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                 for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
@@ -123,10 +134,18 @@ def ann3d_plot_pdd(dose, fluence, feed_forward):
              range(INPUT_MARGIN,dose.shape[0]-INPUT_MARGIN), predicted_dose)
     return fig
 
-def ann3d_plot_profile(dose, fluence, feed_forward):
+def ann3d_plot_profile(density, fluence, dose, feed_forward):
     predicted_dose = []
     for i in range(INPUT_MARGIN, dose.shape[1]-INPUT_MARGIN):
         x_in = [[[[]]]]
+        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                    x_in[0][0][0] += [density[
+                            density.shape[0]/2 + ii,
+                            i + jj,
+                            density.shape[2]/2 + kk
+                            ]]
         for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
             for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                 for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
@@ -143,3 +162,24 @@ def ann3d_plot_profile(dose, fluence, feed_forward):
     plt.plot(range(0,dose.shape[1]), dose[dose.shape[0]/2,:,dose.shape[2]/2],
              range(INPUT_MARGIN,dose.shape[1]-INPUT_MARGIN), predicted_dose)
     return fig
+
+def ann3d_deploy(density, fluence, feed_forward):
+    predicted_dose = np.zeros(fluence.shape)
+    it = np.nditer(predicted_dose, flags=['multi_index'], op_flags=['writeonly'])
+    while not it.finished:
+        i, j, k = it.multi_index
+        x_in = [[[[]]]]
+        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                    x_in[0][0][0] += [density[i+ii, j+jj, k+kk]]
+        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
+                    x_in[0][0][0] += [fluence[i+ii, j+jj, k+kk]]
+
+        x_in = np.array(x_in, dtype=np.float32)
+        ff = feed_forward(x_in)
+        it[0] = ff[0]
+        it.iternext()
+    return predicted_dose

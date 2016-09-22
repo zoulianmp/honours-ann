@@ -27,7 +27,7 @@ import lasagne
 
 VOXEL_SIZE = (0.125,0.125,0.125)    # voxel size (z,y,x) [cm]
 
-def main(ann3d, model, density_dir, fluence_dir, dose_dir, disp, save):
+def main(ann3d, model, density_dir, fluence_dir):
     print('\n')
     print('Loading network parameters...')
     ann3d = imp.load_source('networks.ann3d', ann3d)
@@ -52,16 +52,6 @@ def main(ann3d, model, density_dir, fluence_dir, dose_dir, disp, save):
                 print(f)
                 fluence += [mhd.load_mhd(os.path.join(dirpath, f))[0]]
 
-    # Load a set of volumes from multiple files
-    print('\n')
-    print('Loading dose data...')
-    dose = []
-    for dirpath, subdirs, files in os.walk(dose_dir):
-        for f in sorted(files):
-            if f.endswith(".mhd"):
-                print(f)
-                dose += [mhd.load_mhd(os.path.join(dirpath, f))[0]]
-
     # load the network weights from file
     print('\n')
     print('Importing network from file...')
@@ -80,29 +70,15 @@ def main(ann3d, model, density_dir, fluence_dir, dose_dir, disp, save):
     test_prediction = lasagne.layers.get_output(network, deterministic=True)
     feed_forward = theano.function([input_var], test_prediction)
 
-    # Make plots
-    now = datetime.datetime.now()
-    now = str(now.month) + '-' + str(now.day) + '_' + \
-          str(now.hour) + '-' + str(now.minute) + '-' + str(now.second)
+    # Deploy!
+    prediction = []
     for i in range(len(fluence)):
-        pdd = ann3d.ann3d_plot_pdd(density[i], fluence[i], dose[i], feed_forward)
-        prf = ann3d.ann3d_plot_profile(density[i], fluence[i], dose[i], feed_forward)
-        if disp:
-            pdd.show()
-            prf.show()
-        if save:
-            pdd.savefig('pdd_' + now + '(' + str(i) + ').png')
-            prf.savefig('profile_' + now + '(' + str(i) + ').png')
+        prediction += [ann3d.ann3d_deploy(density[i], fluence[i], feed_forward)]
 
 if __name__ == '__main__':
     if ('--help' in sys.argv) or (len(sys.argv) < 4):
-        print("Plots the PDDs and profiles for density-fluence combinations.")
-        print("Usage: %s [FLAGS] <PARAMS> <MODEL> <DENSITY> <FLUENCE> [DOSE]"
-                % sys.argv[0])
-        print()
-        print("FLAGS:")
-        print("--disp: Setting this flag displays the plots in a window.")
-        print("--save: Setting this flag saves the plots as image files.")
+        print("Stores the predicted dose for an entire volume.")
+        print("Usage: %s <PARAMS> <MODEL> <DENSITY> <FLUENCE>" % sys.argv[0])
         print()
         print("PARAMS: A python module containing the parameters of learning,")
         print("    network architecture, and data sampling methods employed.")
@@ -111,25 +87,10 @@ if __name__ == '__main__':
         print("    containing the voxel densities of a phantom.")
         print("FLUENCE: The path to a folder containing 'n' MHD files, each")
         print("    containing the voxel fluences of a phantom.")
-        print("DOSE: The path to a folder containing 'n' MHD files, each")
-        print("    containing the voxel doses (targets) of a phantom.")
     else:
         kwargs = {}
-        args = sys.argv
-        if ('--disp' in args):
-            kwargs['disp'] = True
-            args = [a for a in args if a != '--disp']
-        else:
-            kwargs['disp'] = False
-        if ('--save' in args):
-            kwargs['save'] = True
-            args = [a for a in args if a != '--save']
-        else:
-            kwargs['save'] = False
-        kwargs['ann3d'] = args[1]
-        kwargs['model'] = args[2]
-        kwargs['density_dir'] = args[3]
-        kwargs['fluence_dir'] = args[4]
-        if len(args) > 5:
-            kwargs['dose_dir'] = args[5]
+        kwargs['ann3d'] = sys.argv[1]
+        kwargs['model'] = sys.argv[2]
+        kwargs['density_dir'] = sys.argv[3]
+        kwargs['fluence_dir'] = sys.argv[4]
         main(**kwargs)
