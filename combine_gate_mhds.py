@@ -64,9 +64,9 @@ def main(source_dir, unit='dose', output_file='combined.mhd'):
         mhd.write_mhd(output_file, dose, dose.shape, VOXEL_SIZE)
 
 if __name__ == '__main__':
-    if ('--help' in sys.argv) or ('-h' in sys.argv) or (len(sys.argv) < 2):
+    if ('--help' in sys.argv) or (len(sys.argv) < 2):
         print("Combines MHD files produced by GATE into one normalised file.")
-        print("Usage: %s <SOURCE DIRECTORY> [UNIT] [OUTPUT FILE]" % sys.argv[0])
+        print("Usage: %s <SOURCE DIRECTORY> [UNIT] [OUTPUT_FILE]" % sys.argv[0])
         print()
         print("SOURCE DIRECTORY: The folder containing subfolders that each")
         print("    contain the output of one linac simulation.")
@@ -74,7 +74,7 @@ if __name__ == '__main__':
         print("    'dose' for volumetric dose")
         print("    'energy' for energy deposited")
         print("    (default: dose)")
-        print("OUTPUT FILE: The name of the MHD file that will contain the")
+        print("OUTPUT_FILE: The name of the MHD file that will contain the")
         print("    combined data.")
     else:
         kwargs = {}

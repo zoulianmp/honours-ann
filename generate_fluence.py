@@ -87,13 +87,13 @@ if __name__ == '__main__':
     if ('--help' in sys.argv) or (len(sys.argv) < 3):
         print("Generates an MHD file containing the relative fluence")
         print("defined by a given field size and volume.")
-        print("Usage: %s <FIELD SIZE> <VOLUME> [OUTPUT FILE]" % sys.argv[0])
+        print("Usage: %s <FIELD SIZE> <VOLUME> [OUTPUT_FILE]" % sys.argv[0])
         print()
         print("FIELD SIZE: An integer defining the x-ray beam width at the")
         print("    surface of the phantom volume.")
         print("VOLUME: The path to an MHD file with volume equal to that")
         print("    in which the fluence will be generated")
-        print("OUTPUT FILE: The name of the MHD file that will contain the")
+        print("OUTPUT_FILE: The name of the MHD file that will contain the")
         print("    generated data.")
     else:
         kwargs = {}
