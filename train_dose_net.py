@@ -21,7 +21,6 @@ import imp
 import mhd_utils_3d as mhd
 import numpy as np
 import matplotlib.pyplot as plt
-import sampling_methods as sm
 import theano
 import theano.tensor as T
 import lasagne
@@ -40,7 +39,8 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
             excerpt = slice(start_idx, start_idx + batchsize)
         yield inputs[excerpt], targets[excerpt]
 
-def main(ann3d, density_dir, fluence_dir, dose_dir, output_file=None):
+def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
+                    hp_override=None):
     print('\n')
     print('Loading network parameters...')
     ann3d = imp.load_source('networks.ann3d', ann3d)
@@ -48,6 +48,14 @@ def main(ann3d, density_dir, fluence_dir, dose_dir, output_file=None):
     batchsize = ann3d.BATCHSIZE
     num_epochs = ann3d.NUM_EPOCHS
     momentum = ann3d.MOMENTUM
+
+    if hp_override is not None:
+        learning_rate, batchsize, num_epochs, momentum = hp_override
+
+    print('Learning Rate:\t\t%s' % learning_rate)
+    print('Batch Size:\t\t%s' % batchsize)
+    print('Number of Epochs:\t%s' % num_epochs)
+    print('Momentum:\t\t%s' % momentum)
 
     # Load a set of volumes from multiple files
     print('\n')
@@ -58,6 +66,16 @@ def main(ann3d, density_dir, fluence_dir, dose_dir, output_file=None):
             if f.endswith(".mhd"):
                 print(f)
                 density += [mhd.load_mhd(os.path.join(dirpath, f))[0]]
+
+    # Load a set of volumes from multiple files
+    print('\n')
+    print('Loading integral data...')
+    integral = []
+    for dirpath, subdirs, files in os.walk(intgr_dir):
+        for f in sorted(files):
+            if f.endswith(".mhd"):
+                print(f)
+                integral += [mhd.load_mhd(os.path.join(dirpath, f))[0]]
 
     # Load a set of volumes from multiple files
     print('\n')
@@ -79,7 +97,8 @@ def main(ann3d, density_dir, fluence_dir, dose_dir, output_file=None):
                 print(f)
                 dose += [mhd.load_mhd(os.path.join(dirpath, f))[0]]
 
-    assert len(density) == len(fluence)
+    assert len(density) == len(integral)
+    assert len(integral) == len(fluence)
     assert len(fluence) == len(dose)
 
     # Prepare Theano variables for inputs and targets
@@ -89,7 +108,7 @@ def main(ann3d, density_dir, fluence_dir, dose_dir, output_file=None):
     # Create neural network model (depending on first command line parameter)
     print('\n')
     print('Sampling data set...')
-    x_train, y_train, x_val, y_val, x_test, y_test = ann3d.ann3d_dataset(density, fluence, dose)
+    x_train, y_train, x_val, y_val, x_test, y_test = ann3d.ann3d_dataset(density, integral, fluence, dose)
 
     print('\n')
     print('Building model and compiling functions...')
@@ -103,8 +122,9 @@ def main(ann3d, density_dir, fluence_dir, dose_dir, output_file=None):
 
     # Here, we'll use Stochastic Gradient Descent (SGD) with Nesterov momentum
     params = lasagne.layers.get_all_params(network, trainable=True)
-    updates = lasagne.updates.nesterov_momentum(
-            loss, params, learning_rate=learning_rate, momentum=momentum)
+    #updates = lasagne.updates.nesterov_momentum(
+    #        loss, params, learning_rate=learning_rate, momentum=momentum)
+    updates = lasagne.updates.adam(loss, params, learning_rate=learning_rate)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
@@ -123,7 +143,10 @@ def main(ann3d, density_dir, fluence_dir, dose_dir, output_file=None):
     # Finally, launch the training loop.
     print('\n')
     print("Starting training...")
+
     # We iterate over epochs:
+    t_plot = []
+    v_plot = []
     for epoch in range(num_epochs):
 
         # In each epoch, we do a full pass over the training data:
@@ -132,7 +155,7 @@ def main(ann3d, density_dir, fluence_dir, dose_dir, output_file=None):
         start_time = time.time()
         for batch in iterate_minibatches(x_train, y_train, batchsize, shuffle=False):
             inputs, targets = batch
-            train_err += train_fn(inputs, targets)
+            train_err = (0.5*(train_err**2.0+train_fn(inputs,targets)**2.0))**0.5
             train_batches += 1
 
         # And a full pass over the validation data:
@@ -140,26 +163,33 @@ def main(ann3d, density_dir, fluence_dir, dose_dir, output_file=None):
         val_batches = 0
         for batch in iterate_minibatches(x_val, y_val, batchsize, shuffle=False):
             inputs, targets = batch
-            err = val_fn(inputs, targets)
-            val_err += err
+            val_err = (0.5*(val_err**2.0+val_fn(inputs,targets)**2.0))**0.5
             val_batches += 1
+
+        # Store the errors for plotting
+        t_plot += [train_err]
+        v_plot += [val_err]
 
         # Then we print the results for this epoch:
         print("Epoch {} of {} took {:.3f}s".format(
             epoch + 1, num_epochs, time.time() - start_time))
-        print("  training loss:\t\t{:.6e}".format(train_err / train_batches))
-        print("  validation loss:\t\t{:.6e}".format(val_err / val_batches))
+        print("  training loss:\t\t{:.6e}".format(train_err))
+        print("  validation loss:\t\t{:.6e}".format(val_err))
+
+        # Early stopping
+        if len(v_plot) > 4:
+            if v_plot[-1] > v_plot[-2] > v_plot[-3] > v_plot[-4]:
+                break
 
     # After training, we compute and print the test error:
     test_err = 0
     test_batches = 0
     for batch in iterate_minibatches(x_test, y_test, batchsize, shuffle=False):
         inputs, targets = batch
-        err = val_fn(inputs, targets)
-        test_err += err
+        test_err = (0.5*(test_err**2.0+val_fn(inputs,targets)**2.0))**0.5
         test_batches += 1
     print("Final results:")
-    print("  test loss:\t\t\t{:.6e}".format(test_err / test_batches))
+    print("  test loss:\t\t\t{:.6e}".format(test_err))
 
     # Now dump the network weights to a file:
     now = datetime.datetime.now()
@@ -167,16 +197,26 @@ def main(ann3d, density_dir, fluence_dir, dose_dir, output_file=None):
           str(now.hour) + '-' + str(now.minute) + '-' + str(now.second)
     np.savez('model_' + now, *lasagne.layers.get_all_param_values(network))
 
+    # And plot the errors
+    fig = plt.figure()
+    plt.plot(t_plot, label="training")
+    plt.plot(v_plot, label="validation")
+    plt.legend()
+    plt.title('L:%s, M:%s, T:%s' % (learning_rate, momentum, test_err))
+    fig.savefig('errors_' + now + '.png')
+
 if __name__ == '__main__':
-    if ('--help' in sys.argv) or (len(sys.argv) < 5):
+    if ('--help' in sys.argv) or (len(sys.argv) < 6):
         print("Trains a neural network to predict radiation dose.")
-        print("Usage: %s <PARAMS> <DENSITY> <FLUENCE> <DOSE> [OUTPUT_FILE]"
+        print("Usage: %s <PARAMS> <DENSITY> <INTEGRALS> <FLUENCE> <DOSE> [OUTPUT_FILE]"
                 % sys.argv[0])
         print()
         print("PARAMS: A python module containing the parameters of learning,")
         print("    network architecture, and data sampling methods employed.")
         print("DENSITY: The path to a folder containing 'n' MHD files, each")
         print("    containing the voxel densities of a phantom.")
+        print("INTEGRALS: The path to a folder containing 'n' MHD files, each")
+        print("    containing the integral densities of a phantom.")
         print("FLUENCE: The path to a folder containing 'n' MHD files, each")
         print("    containing the voxel fluences of a phantom.")
         print("DOSE: The path to a folder containing 'n' MHD files, each")
@@ -187,8 +227,9 @@ if __name__ == '__main__':
         kwargs = {}
         kwargs['ann3d'] = sys.argv[1]
         kwargs['density_dir'] = sys.argv[2]
-        kwargs['fluence_dir'] = sys.argv[3]
-        kwargs['dose_dir'] = sys.argv[4]
-        if len(sys.argv) > 5:
-            kwargs['output_file'] = sys.argv[5]
+        kwargs['intgr_dir'] = sys.argv[3]
+        kwargs['fluence_dir'] = sys.argv[4]
+        kwargs['dose_dir'] = sys.argv[5]
+        if len(sys.argv) > 6:
+            kwargs['output_file'] = sys.argv[6]
         main(**kwargs)

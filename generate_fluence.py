@@ -20,6 +20,7 @@ import mhd_utils_3d as mhd
 import numpy as np
 
 VOXEL_SIZE = (0.125,0.125,0.125)    # voxel size (z,y,x) [cm]
+#VOXEL_SIZE = (0.25,0.25,0.25)       # voxel size (z,y,x) [cm]
 SS_DIST = 100.0                     # source-surface distance [cm]
 
 MASS_ATT_AIR = 2.522e-2         # mass attenuation of air [cm^2/g]
@@ -45,10 +46,18 @@ def generate_fluence(vol_shape, vox_size, field_size):
     fluence = np.zeros(vol_shape)
 
     z = vox_size[0] * np.arange(vol_shape[0]-1,-1,-1) + SS_DIST
-    y = vox_size[1] * np.concatenate(
+    if vol_shape[1] % 2 == 0:
+        y = vox_size[1] * np.concatenate(
             (np.arange(vol_shape[1]/2-1,-1,-1), np.arange(0, vol_shape[1]/2)))
-    x = vox_size[2] * np.concatenate(
+    else:
+        y = vox_size[1] * np.concatenate(
+            (np.arange(vol_shape[1]/2, 0,-1), np.arange(0, vol_shape[1]/2+1)))
+    if vol_shape[2] % 2 == 0:
+        x = vox_size[2] * np.concatenate(
             (np.arange(vol_shape[2]/2-1,-1,-1), np.arange(0, vol_shape[2]/2)))
+    else:
+        x = vox_size[2] * np.concatenate(
+            (np.arange(vol_shape[2]/2, 0,-1), np.arange(0, vol_shape[2]/2+1)))
 
     Z,Y,X = np.meshgrid(z,y,x, indexing='ij')
     R_sq = np.square(X) + np.square(Y) + np.square(Z)

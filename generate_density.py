@@ -92,12 +92,15 @@ def generate_density(vol_shape, vox_size, geometry, dens1, dens2=None):
         print("Unrecognized geometry type %r." % geometry)
         return
 
-def main(geometry, volume_file, mat1, mat2='none', output_file=None):
+def main(geometry, integral, volume_file, mat1, mat2='none', output_file=None):
     if output_file is None:
         now = datetime.datetime.now()
         now = str(now.month) + '-' + str(now.day) + '_' + \
               str(now.hour) + '-' + str(now.minute) + '-' + str(now.second)
-        output_file = 'density_' + now + '.mhd'
+        if integral:
+            output_file = 'integral_' + now + '.mhd'
+        else:
+            output_file = 'density_' + now + '.mhd'
 
     print_progress(0,3)
     meta = mhd.read_meta_header(volume_file)
@@ -112,6 +115,8 @@ def main(geometry, volume_file, mat1, mat2='none', output_file=None):
 
     print_progress(1,3)
     density = generate_density(vol, VOXEL_SIZE, geometry, dens[mat1], dens[mat2])
+    if integral:
+        density = np.cumsum(density[::-1,...]-DENSITY_WAT, axis=0)[::-1,...]/40.0
     print_progress(2,3)
     mhd.write_mhd(output_file, density, density.shape, VOXEL_SIZE)
     print_progress(3,3)
@@ -120,8 +125,11 @@ if __name__ == '__main__':
     if ('--help' in sys.argv) or (len(sys.argv) < 4):
         print("Generates an MHD file containing the density of voxels")
         print("defined by a given geometry and set of materials.")
-        print("Usage: %s <GEOMETRY> <VOLUME> <MAT1> [[MAT2] OUTPUT_FILE]"
+        print("Usage: %s [FLAGS] <GEOMETRY> <VOLUME> <MAT1> [[MAT2] OUTPUT_FILE]"
                 % sys.argv[0])
+        print()
+        print("FLAGS:")
+        print("--integral: Setting this flag displays the plots in a window.")
         print()
         print("GEOMETRY: A string defining the type of volumetric arrangement")
         print("    to be returned. Options are:")
@@ -138,11 +146,17 @@ if __name__ == '__main__':
         print("    generated data.")
     else:
         kwargs = {}
-        kwargs['geometry'] = sys.argv[1]
-        kwargs['volume_file'] = sys.argv[2]
-        kwargs['mat1'] = sys.argv[3]
-        if len(sys.argv) > 4:
-            kwargs['mat2'] = sys.argv[4]
-        if len(sys.argv) > 5:
-            kwargs['output_file'] = sys.argv[5]
+        args = sys.argv
+        if ('--integral' in args):
+            kwargs['integral'] = True
+            args = [a for a in args if a != '--integral']
+        else:
+            kwargs['integral'] = False
+        kwargs['geometry'] = args[1]
+        kwargs['volume_file'] = args[2]
+        kwargs['mat1'] = args[3]
+        if len(args) > 4:
+            kwargs['mat2'] = args[4]
+        if len(args) > 5:
+            kwargs['output_file'] = args[5]
         main(**kwargs)
