@@ -23,6 +23,7 @@ VOXEL_SIZE = (0.125,0.125,0.125)    # voxel size (z,y,x) [cm]
 
 DENSITY_ADI = 0.920             # density of adipose [g/cm^3]
 DENSITY_AIR = 1.225e-3          # density of air [g/cm^3]
+DENSITY_LUN = 0.260             # density of lung [g/cm^3]
 DENSITY_RIB = 1.920             # density of rib bone [g/cm^3]
 DENSITY_WAT = 1.000             # density of water [g/cm^3]
 
@@ -109,6 +110,7 @@ def main(geometry, integral, volume_file, mat1, mat2='none', output_file=None):
 
     dens = {'adipose': DENSITY_ADI,
             'air':     DENSITY_AIR,
+            'lung':    DENSITY_LUN,
             'ribbone': DENSITY_RIB,
             'water':   DENSITY_WAT,
             'none':    None}
@@ -139,7 +141,7 @@ if __name__ == '__main__':
         print("VOLUME: The path to an MHD file with volume equal to that")
         print("    in which the density will be generated")
         print("MAT1: The material of the first inhomogeneity. Options are:")
-        print("    'adipose', 'air', 'ribbone', or 'water'")
+        print("    'adipose', 'air', 'lung', 'ribbone', or 'water'")
         print("MAT1: The material of the second inhomogeneity. Options are:")
         print("    'adipose', 'air', 'ribbone', 'water', or 'none'")
         print("OUTPUT_FILE: The name of the MHD file that will contain the")

@@ -84,12 +84,12 @@ def main(field_size, volume_file, output_file=None):
 
     print_progress(0,3)
     meta = mhd.read_meta_header(volume_file)
-    vol = [int(i) for i in meta['DimSize'].split()]
+    vol = meta['DimSize']
     vol.reverse()
     print_progress(1,3)
     fluence = generate_fluence(vol, VOXEL_SIZE, (field_size,field_size))
     print_progress(2,3)
-    mhd.write_mhd(output_file, fluence, fluence.shape, VOXEL_SIZE)
+    mhd.write_mhd(output_file, fluence, **meta)
     print_progress(3,3)
 
 if __name__ == '__main__':

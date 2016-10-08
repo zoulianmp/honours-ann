@@ -45,6 +45,7 @@ def main(dicom_dir, output_file=None, dims=2):
               str(now.hour) + '-' + str(now.minute) + '-' + str(now.second)
         output_file = 'dicom_' + now + '.mhd'
 
+    # combine a directory of slices
     if dims == 2:
         print_progress(0,3)
         file_dict = {}
@@ -64,7 +65,13 @@ def main(dicom_dir, output_file=None, dims=2):
         dicom = np.flipud(dicom)
 
         print_progress(2,3)
-        mhd.write_mhd(output_file, dicom, dicom.shape, VOXEL_SIZE)
+        meta = {}
+        meta['CompressedData'] = 'False'
+        meta['TransformMatrix'] = '1 0 0 0 1 0 0 0 1'
+        meta['CenterOfRotation'] = '0 0 0'
+        meta['ElementSpacing'] = VOXEL_SIZE
+        meta['Offset'] = [-(i[0]*(i[1]-1))/2.0 for i in zip(VOXEL_SIZE,dicom.shape)]
+        mhd.write_mhd(output_file, dicom, **meta)
         print_progress(3,3)
 
 if __name__ == '__main__':
@@ -73,7 +80,7 @@ if __name__ == '__main__':
         print("defined by the slices of a DICOM CT scan.")
         print("Usage: %s <DICOM> [OUTPUT_FILE]" % sys.argv[0])
         print()
-        print("VOLUME: The path to a directory containing DCM files, each")
+        print("DICOM: The path to a directory containing DCM files, each")
         print("    representing a layer of the CT scanned volume.")
         print("OUTPUT_FILE: The name of the MHD file that will contain the")
         print("    generated data.")

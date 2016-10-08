@@ -176,9 +176,9 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
         print("  training loss:\t\t{:.6e}".format(train_err))
         print("  validation loss:\t\t{:.6e}".format(val_err))
 
-        # Early stopping
+        # Early stop if failure to improve three consecutive times
         if len(v_plot) > 4:
-            if v_plot[-1] > v_plot[-2] > v_plot[-3] > v_plot[-4]:
+            if v_plot[-1] >= v_plot[-2] >= v_plot[-3] >= v_plot[-4]:
                 break
 
     # After training, we compute and print the test error:

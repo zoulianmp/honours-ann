@@ -14,7 +14,8 @@ NEW_VOXEL_SIZE = (0.125,0.125,0.125)
 
 def main(file1, file2, file3):
     mhd1 = mhd.load_mhd(file1)[0]
-    mhd2 = mhd.load_mhd(file2)[0]
+    print(np.max(mhd1))
+    #mhd2 = mhd.load_mhd(file2)[0]
     #mhd2 = zoom(mhd1,
     #        (OLD_VOXEL_SIZE[0]/NEW_VOXEL_SIZE[0],
     #         OLD_VOXEL_SIZE[1]/NEW_VOXEL_SIZE[1],
@@ -29,8 +30,8 @@ def main(file1, file2, file3):
     #        x[...] = 1.07 + (2.17/2819.0) * (x-1054.0)
     #    else:
     #        x[...] = 2.17 + (8.00/9146.0) * (x-2819.0)
-    mhd3 = mhd1 * mhd2
-    mhd.write_mhd(file3, mhd3, mhd3.shape, NEW_VOXEL_SIZE)
+    #mhd3 = mhd1 * mhd2
+    #mhd.write_mhd(file3, mhd3, mhd3.shape, NEW_VOXEL_SIZE)
 
 if __name__ == '__main__':
     kwargs = {}
