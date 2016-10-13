@@ -22,10 +22,11 @@ LEARNING_RATE = 1e-4
 NUM_EPOCHS = 100
 BATCHSIZE = 512
 MOMENTUM = 0.9
-N_SAMPLES = 1048576
+N_SAMPLES = 262144
 
-INPUT_MARGIN = 3
+INPUT_MARGIN = 8
 OUTPUT_MARGIN = 0
+PRECISION = np.float16
 
 def ann3d_dataset(density, integral, fluence, dose):
     # The outer voxels of the dose tensors are unusable since the neighbouring
@@ -34,22 +35,21 @@ def ann3d_dataset(density, integral, fluence, dose):
     coord_list = sm.monte_carlo(dose, INPUT_MARGIN, N_SAMPLES)
 
     n_side = 2*INPUT_MARGIN + 1
-    x_list = np.empty((len(coord_list), 3*n_side, n_side, n_side), dtype=np.float32)
-    y_list = np.empty((len(coord_list), 1), dtype=np.float32)
+    x_list = np.empty((len(coord_list), 3, n_side, n_side, n_side), dtype=PRECISION)
+    y_list = np.empty((len(coord_list), 1), dtype=PRECISION)
     for i in range(len(coord_list)):
         c = coord_list[i]
 
-        x_tmp1 = density[c[0]][c[1]-INPUT_MARGIN:c[1]+INPUT_MARGIN+1,
-                               c[2]-INPUT_MARGIN:c[2]+INPUT_MARGIN+1,
-                               c[3]-INPUT_MARGIN:c[3]+INPUT_MARGIN+1]
-        x_tmp2 = integral[c[0]][c[1]-INPUT_MARGIN:c[1]+INPUT_MARGIN+1,
-                                c[2]-INPUT_MARGIN:c[2]+INPUT_MARGIN+1,
-                                c[3]-INPUT_MARGIN:c[3]+INPUT_MARGIN+1]
-        x_tmp3 = fluence[c[0]][c[1]-INPUT_MARGIN:c[1]+INPUT_MARGIN+1,
-                               c[2]-INPUT_MARGIN:c[2]+INPUT_MARGIN+1,
-                               c[3]-INPUT_MARGIN:c[3]+INPUT_MARGIN+1]
+        x_list[i][0] = density[c[0]][c[1]-INPUT_MARGIN:c[1]+INPUT_MARGIN+1,
+                                     c[2]-INPUT_MARGIN:c[2]+INPUT_MARGIN+1,
+                                     c[3]-INPUT_MARGIN:c[3]+INPUT_MARGIN+1]
+        x_list[i][1] = integral[c[0]][c[1]-INPUT_MARGIN:c[1]+INPUT_MARGIN+1,
+                                      c[2]-INPUT_MARGIN:c[2]+INPUT_MARGIN+1,
+                                      c[3]-INPUT_MARGIN:c[3]+INPUT_MARGIN+1]
+        x_list[i][2] = fluence[c[0]][c[1]-INPUT_MARGIN:c[1]+INPUT_MARGIN+1,
+                                     c[2]-INPUT_MARGIN:c[2]+INPUT_MARGIN+1,
+                                     c[3]-INPUT_MARGIN:c[3]+INPUT_MARGIN+1]
 
-        x_list[i] = np.concatenate((x_tmp1, x_tmp2, x_tmp3))
         y_list[i] = dose[c[0]][c[1], c[2], c[3]]
 
     # Use 70% of usable coordinates as training data, 15% as valaidation
@@ -76,71 +76,58 @@ def ann3d_model(input_var=None):
     # (unspecified batchsize, 1 channel, 1 rows and many columns) and
     # linking it to the given Theano variable `input_var`, if any:
     n_side = 2*INPUT_MARGIN + 1
-    l_in = lasagne.layers.InputLayer(shape=(None, 3*n_side, n_side, n_side),
+    network = lasagne.layers.InputLayer(shape=(None, 3, n_side, n_side, n_side),
                                         input_var=input_var)
 
-    l_gaus = lasagne.layers.GaussianNoiseLayer(l_in, sigma=0.1)
+    network = lasagne.layers.GaussianNoiseLayer(network, sigma=0.1)
 
     # Apply 0% dropout to the input data:
-    #l_in_drop = lasagne.layers.DropoutLayer(l_in, p=0.0)
+    #network = lasagne.layers.DropoutLayer(network, p=0.0)
 
     # Add a fully-connected layer of 800 units, using the linear rectifier, and
     # initializing weights with Glorot's scheme (which is the default anyway):
-    l_hid1 = lasagne.layers.dnn.Conv3DDNNLayer(
-            l_gaus, num_filters=3, filter_size=(3,3,3),
+    network = lasagne.layers.dnn.Conv3DDNNLayer(
+            network, num_filters=5, filter_size=(5,5,5),
             nonlinearity=lasagne.nonlinearities.rectify,
             W=lasagne.init.GlorotUniform())
 
-    l_maxp = lasagne.layers.dnn.MaxPool3DDNNLayer(l_hid1, pool_size=(2,2,2))
+    network = lasagne.layers.dnn.MaxPool3DDNNLayer(network, pool_size=(2,2,2))
 
     # We'll now add dropout of 20%:
-    #l_hid1_drop = lasagne.layers.DropoutLayer(l_hid1, p=0.2)
+    #network = lasagne.layers.DropoutLayer(network, p=0.2)
 
-    l_hid2 = lasagne.layers.DenseLayer(
-            l_maxp, num_units=256,
+    network = lasagne.layers.DenseLayer(
+            network, num_units=256,
             nonlinearity=lasagne.nonlinearities.rectify,
             W=lasagne.init.GlorotUniform())
 
     # Finally, we'll add the fully-connected output layer, of 1 rectifier unit:
-    l_out = lasagne.layers.DenseLayer(
-            l_hid2, num_units=(2*OUTPUT_MARGIN+1)**3,
+    network = lasagne.layers.DenseLayer(
+            network, num_units=(2*OUTPUT_MARGIN+1)**3,
             nonlinearity=lasagne.nonlinearities.rectify)
 
     # Each layer is linked to its incoming layer(s), so we only need to pass
     # the output layer to give access to a network in Lasagne:
-    return l_out
+    return network
 
 def ann3d_plot_pdd(density, integral, fluence, dose, feed_forward):
     predicted_dose = []
     for i in range(INPUT_MARGIN, dose.shape[0]-INPUT_MARGIN):
-        x_in = [[[[]]]]
-        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                    x_in[0][0][0] += [density[
-                            i + ii,
-                            density.shape[1]/2 + jj,
-                            density.shape[2]/2 + kk
-                            ]]
-        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                    x_in[0][0][0] += [integral[
-                            i + ii,
-                            integral.shape[1]/2 + jj,
-                            integral.shape[2]/2 + kk
-                            ]]
-        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                    x_in[0][0][0] += [fluence[
-                            i + ii,
-                            fluence.shape[1]/2 + jj,
-                            fluence.shape[2]/2 + kk
-                            ]]
+        c = [i, dose.shape[1]/2, dose.shape[2]/2]
 
-        x_in = np.array(x_in, dtype=np.float32)
-        ff = feed_forward(x_in)
+        x_list = [[0,0,0]]
+        x_list[0][0] = density[c[0]-INPUT_MARGIN:c[0]+INPUT_MARGIN+1,
+                               c[1]-INPUT_MARGIN:c[1]+INPUT_MARGIN+1,
+                               c[2]-INPUT_MARGIN:c[2]+INPUT_MARGIN+1]
+        x_list[0][1] = integral[c[0]-INPUT_MARGIN:c[0]+INPUT_MARGIN+1,
+                                c[1]-INPUT_MARGIN:c[1]+INPUT_MARGIN+1,
+                                c[2]-INPUT_MARGIN:c[2]+INPUT_MARGIN+1]
+        x_list[0][2] = fluence[c[0]-INPUT_MARGIN:c[0]+INPUT_MARGIN+1,
+                               c[1]-INPUT_MARGIN:c[1]+INPUT_MARGIN+1,
+                               c[2]-INPUT_MARGIN:c[2]+INPUT_MARGIN+1]
+
+        x_list = np.array(x_list, dtype=PRECISION)
+        ff = feed_forward(x_list)
         predicted_dose.append(ff[0])
     fig = plt.figure()
     plt.plot(range(0,dose.shape[0]), dose[:,dose.shape[1]/2,dose.shape[2]/2], label="real")
@@ -151,34 +138,21 @@ def ann3d_plot_pdd(density, integral, fluence, dose, feed_forward):
 def ann3d_plot_profile(density, integral, fluence, dose, feed_forward):
     predicted_dose = []
     for i in range(INPUT_MARGIN, dose.shape[2]-INPUT_MARGIN):
-        x_in = [[[[]]]]
-        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                    x_in[0][0][0] += [density[
-                            density.shape[0]/2 + ii,
-                            density.shape[1]/2 + jj,
-                            i + kk
-                            ]]
-        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                    x_in[0][0][0] += [integral[
-                            integral.shape[0]/2 + ii,
-                            integral.shape[1]/2 + jj,
-                            i + kk
-                            ]]
-        for ii in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-            for jj in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
-                    x_in[0][0][0] += [fluence[
-                            fluence.shape[0]/2 + ii,
-                            fluence.shape[1]/2 + jj,
-                            i + kk
-                            ]]
+        c = [density.shape[0]/2, density.shape[1]/2, i]
 
-        x_in = np.array(x_in, dtype=np.float32)
-        ff = feed_forward(x_in)
+        x_list = [[0,0,0]]
+        x_list[0][0] = density[c[0]-INPUT_MARGIN:c[0]+INPUT_MARGIN+1,
+                               c[1]-INPUT_MARGIN:c[1]+INPUT_MARGIN+1,
+                               c[2]-INPUT_MARGIN:c[2]+INPUT_MARGIN+1]
+        x_list[0][1] = integral[c[0]-INPUT_MARGIN:c[0]+INPUT_MARGIN+1,
+                                c[1]-INPUT_MARGIN:c[1]+INPUT_MARGIN+1,
+                                c[2]-INPUT_MARGIN:c[2]+INPUT_MARGIN+1]
+        x_list[0][2] = fluence[c[0]-INPUT_MARGIN:c[0]+INPUT_MARGIN+1,
+                               c[1]-INPUT_MARGIN:c[1]+INPUT_MARGIN+1,
+                               c[2]-INPUT_MARGIN:c[2]+INPUT_MARGIN+1]
+
+        x_list = np.array(x_list, dtype=PRECISION)
+        ff = feed_forward(x_list)
         predicted_dose.append(ff[0])
     fig = plt.figure()
     plt.plot(range(0,dose.shape[2]), dose[dose.shape[0]/2,dose.shape[1]/2,:], label="real")
@@ -220,7 +194,7 @@ def ann3d_deploy(density, integral, fluence, feed_forward):
                 for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                     x_in[0][0][0] += [fluence[i+ii, j+jj, k+kk]]
 
-        x_in = np.array(x_in, dtype=np.float32)
+        x_in = np.array(x_in, dtype=PRECISION)
         ff = feed_forward(x_in)
         it[0] = ff[0]
         it.iternext()

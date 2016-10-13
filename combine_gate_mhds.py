@@ -50,18 +50,19 @@ def import_dose_from_gate(root_dir, unit='dose'):
     for path in dirs:
         n_dir += 1
         print_progress(n_dir, len(dirs))
-        ddata = mhd.load_mhd(root_dir + '/' + path + unit)[0]
+        ddata = mhd.load_mhd(root_dir + '/' + path + unit)
         if n_dir == 1:
-            data = ddata
+            data = ddata[0]
+            meta = ddata[1]
         else:
-            data += ddata
+            data += ddata[0]
 
-    return data
+    return (data, meta)
 
 def main(source_dir, unit='dose', output_file='combined.mhd'):
-        dose = import_dose_from_gate(source_dir, unit)
+        [dose, meta] = import_dose_from_gate(source_dir, unit)
         dose = dose/np.max(dose)
-        mhd.write_mhd(output_file, dose, dose.shape, VOXEL_SIZE)
+        mhd.write_mhd(output_file, dose, **meta)
 
 if __name__ == '__main__':
     if ('--help' in sys.argv) or (len(sys.argv) < 2):

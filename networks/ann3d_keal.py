@@ -17,24 +17,25 @@ import matplotlib.pyplot as plt
 import lasagne
 
 # hyperparameters
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 2e-6
 NUM_EPOCHS = 100
 BATCHSIZE = 512
 MOMENTUM = 0.7
-N_SAMPLES = 4194304
+N_SAMPLES = 524288
 
-INPUT_MARGIN = 2
+INPUT_MARGIN = 4
 OUTPUT_MARGIN = 0
+PRECISION = np.float16
 
 def ann3d_dataset(density, integral, fluence, dose):
     # The outer voxels of the dose tensors are unusable since the neighbouring
     # voxels are included as input to the neural network. We create a set of
     # susable coordinates:
-    coord_list = sm.latin_hypercube(dose, INPUT_MARGIN, N_SAMPLES)
+    coord_list = sm.monte_carlo(dose, INPUT_MARGIN, N_SAMPLES)
 
     n_inputs = 3+3*((2*INPUT_MARGIN+1)**3)
-    x_list = np.empty((len(coord_list), 1, 1, n_inputs), dtype=np.float32)
-    y_list = np.empty((len(coord_list), 1), dtype=np.float32)
+    x_list = np.empty((len(coord_list), 1, 1, n_inputs), dtype=PRECISION)
+    y_list = np.empty((len(coord_list), 1), dtype=PRECISION)
     for i in range(len(coord_list)):
         c = coord_list[i]
         x_tmp = [
@@ -149,7 +150,7 @@ def ann3d_plot_pdd(density, integral, fluence, dose, feed_forward):
                             fluence.shape[2]/2 + kk
                             ]]
 
-        x_in = np.array(x_in, dtype=np.float32)
+        x_in = np.array(x_in, dtype=PRECISION)
         ff = feed_forward(x_in)
         predicted_dose.append(ff[0])
     fig = plt.figure()
@@ -191,7 +192,7 @@ def ann3d_plot_profile(density, integral, fluence, dose, feed_forward):
                             i + kk
                             ]]
 
-        x_in = np.array(x_in, dtype=np.float32)
+        x_in = np.array(x_in, dtype=PRECISION)
         ff = feed_forward(x_in)
         predicted_dose.append(ff[0])
     fig = plt.figure()
@@ -234,7 +235,7 @@ def ann3d_deploy(density, integral, fluence, feed_forward):
                 for kk in range(-INPUT_MARGIN, INPUT_MARGIN+1):
                     x_in[0][0][0] += [fluence[i+ii, j+jj, k+kk]]
 
-        x_in = np.array(x_in, dtype=np.float32)
+        x_in = np.array(x_in, dtype=PRECISION)
         ff = feed_forward(x_in)
         it[0] = ff[0]
         it.iternext()

@@ -62,11 +62,14 @@ def main(ann3d, model, density_dir, intgr_dir, fluence_dir, output_file=None):
     print('\n')
     print('Loading fluence data...')
     fluence = []
+    meta = []
     for dirpath, subdirs, files in os.walk(fluence_dir):
         for f in sorted(files):
             if f.endswith(".mhd"):
                 print(f)
-                fluence += [mhd.load_mhd(os.path.join(dirpath, f))[0]]
+                [tmp_flue,tmp_meta] = mhd.load_mhd(os.path.join(dirpath,f))
+                fluence += [tmp_flue]
+                meta    += [tmp_meta]
 
     # load the network weights from file
     print('\n')
@@ -90,8 +93,7 @@ def main(ann3d, model, density_dir, intgr_dir, fluence_dir, output_file=None):
     prediction = []
     for i in range(len(fluence)):
         prediction += [ann3d.ann3d_deploy(density[i], integral[i], fluence[i], feed_forward)]
-        mhd.write_mhd('(' + str(i) + ')' + output_file,
-                prediction[i], prediction[i].shape, VOXEL_SIZE)
+        mhd.write_mhd('(' + str(i) + ')' + output_file, prediction[i], **meta[i])
 
 if __name__ == '__main__':
     if ('--help' in sys.argv) or (len(sys.argv) < 6):

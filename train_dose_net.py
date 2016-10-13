@@ -102,7 +102,8 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
     assert len(fluence) == len(dose)
 
     # Prepare Theano variables for inputs and targets
-    input_var = T.tensor4('inputs')
+    #ftensor5 = T.TensorType('float32', (False,)*5)
+    input_var = T.ftensor5('inputs')
     target_var = T.fmatrix('targets')
 
     # Create neural network model (depending on first command line parameter)
@@ -117,7 +118,7 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
     # Create a loss expression for training, i.e., a scalar objective:
     prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.squared_error(prediction, target_var)
-    loss = loss.mean().sqrt()
+    loss = lasagne.objectives.aggregate(loss, weights=None, mode='sum')
     # We could add some weight decay as well here
 
     # Here, we'll use Stochastic Gradient Descent (SGD) with Nesterov momentum
@@ -130,8 +131,7 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
     # here is that we do a deterministic forward pass through the network,
     # disabling dropout layers.
     test_prediction = lasagne.layers.get_output(network, deterministic=True)
-    test_loss = lasagne.objectives.squared_error(test_prediction, target_var)
-    test_loss = test_loss.mean().sqrt()
+    test_loss = lasagne.objectives.aggregate(loss, weights=None, mode='sum')
     feed_forward = theano.function([input_var], test_prediction)
 
     # Compile a function performing a training step on a mini-batch:
@@ -155,7 +155,7 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
         start_time = time.time()
         for batch in iterate_minibatches(x_train, y_train, batchsize, shuffle=False):
             inputs, targets = batch
-            train_err = (0.5*(train_err**2.0+train_fn(inputs,targets)**2.0))**0.5
+            train_err += train_fn(inputs,targets)
             train_batches += 1
 
         # And a full pass over the validation data:
@@ -163,18 +163,18 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
         val_batches = 0
         for batch in iterate_minibatches(x_val, y_val, batchsize, shuffle=False):
             inputs, targets = batch
-            val_err = (0.5*(val_err**2.0+val_fn(inputs,targets)**2.0))**0.5
+            val_err += val_fn(inputs,targets)
             val_batches += 1
 
         # Store the errors for plotting
-        t_plot += [train_err]
-        v_plot += [val_err]
+        t_plot += [train_err/train_batches]
+        v_plot += [val_err/val_batches]
 
         # Then we print the results for this epoch:
         print("Epoch {} of {} took {:.3f}s".format(
             epoch + 1, num_epochs, time.time() - start_time))
-        print("  training loss:\t\t{:.6e}".format(train_err))
-        print("  validation loss:\t\t{:.6e}".format(val_err))
+        print("  training loss:\t\t{:.6e}".format(train_err/train_batches))
+        print("  validation loss:\t\t{:.6e}".format(val_err/val_batches))
 
         # Early stop if failure to improve three consecutive times
         if len(v_plot) > 4:
@@ -186,10 +186,10 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
     test_batches = 0
     for batch in iterate_minibatches(x_test, y_test, batchsize, shuffle=False):
         inputs, targets = batch
-        test_err = (0.5*(test_err**2.0+val_fn(inputs,targets)**2.0))**0.5
+        test_err += val_fn(inputs,targets)
         test_batches += 1
     print("Final results:")
-    print("  test loss:\t\t\t{:.6e}".format(test_err))
+    print("  test loss:\t\t\t{:.6e}".format(test_err/test_batches))
 
     # Now dump the network weights to a file:
     now = datetime.datetime.now()

@@ -105,8 +105,7 @@ def main(geometry, integral, volume_file, mat1, mat2='none', output_file=None):
 
     print_progress(0,3)
     meta = mhd.read_meta_header(volume_file)
-    vol = [int(i) for i in meta['DimSize'].split()]
-    vol.reverse()
+    vol = meta['DimSize']
 
     dens = {'adipose': DENSITY_ADI,
             'air':     DENSITY_AIR,
@@ -116,11 +115,11 @@ def main(geometry, integral, volume_file, mat1, mat2='none', output_file=None):
             'none':    None}
 
     print_progress(1,3)
-    density = generate_density(vol, VOXEL_SIZE, geometry, dens[mat1], dens[mat2])
+    density = generate_density(vol[::-1], VOXEL_SIZE, geometry, dens[mat1], dens[mat2])
     if integral:
         density = np.cumsum(density[::-1,...]-DENSITY_WAT, axis=0)[::-1,...]/40.0
     print_progress(2,3)
-    mhd.write_mhd(output_file, density, density.shape, VOXEL_SIZE)
+    mhd.write_mhd(output_file, density, **meta)
     print_progress(3,3)
 
 if __name__ == '__main__':
