@@ -11,7 +11,7 @@
 comment
 '''
 
-from __future__ import print_function
+from __future__ import print_function, division
 
 import os
 import sys
@@ -47,7 +47,7 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
     learning_rate = ann3d.LEARNING_RATE
     batchsize = ann3d.BATCHSIZE
     num_epochs = ann3d.NUM_EPOCHS
-    momentum = ann3d.MOMENTUM
+    #momentum = ann3d.MOMENTUM
 
     if hp_override is not None:
         learning_rate, batchsize, num_epochs, momentum = hp_override
@@ -55,7 +55,7 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
     print('Learning Rate:\t\t%s' % learning_rate)
     print('Batch Size:\t\t%s' % batchsize)
     print('Number of Epochs:\t%s' % num_epochs)
-    print('Momentum:\t\t%s' % momentum)
+    #print('Momentum:\t\t%s' % momentum)
 
     # Load a set of volumes from multiple files
     print('\n')
@@ -91,18 +91,22 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
     print('\n')
     print('Loading dose data...')
     dose = []
+    max_dose = 0
     for dirpath, subdirs, files in os.walk(dose_dir):
         for f in sorted(files):
             if f.endswith(".mhd"):
                 print(f)
                 dose += [mhd.load_mhd(os.path.join(dirpath, f))[0]]
+                if np.max(dose[-1]) > max_dose:
+                    max_dose = np.max(dose[-1])
 
+    dose = [d/max_dose for d in dose]
     assert len(density) == len(integral)
     assert len(integral) == len(fluence)
     assert len(fluence) == len(dose)
 
     # Prepare Theano variables for inputs and targets
-    #ftensor5 = T.TensorType('float32', (False,)*5)
+    #input_var = T.ftensor4('inputs')
     input_var = T.ftensor5('inputs')
     target_var = T.fmatrix('targets')
 
@@ -119,19 +123,21 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
     prediction = lasagne.layers.get_output(network)
     loss = lasagne.objectives.squared_error(prediction, target_var)
     loss = lasagne.objectives.aggregate(loss, weights=None, mode='sum')
-    # We could add some weight decay as well here
+    #loss = loss.sqrt()
 
-    # Here, we'll use Stochastic Gradient Descent (SGD) with Nesterov momentum
     params = lasagne.layers.get_all_params(network, trainable=True)
     #updates = lasagne.updates.nesterov_momentum(
     #        loss, params, learning_rate=learning_rate, momentum=momentum)
     updates = lasagne.updates.adam(loss, params, learning_rate=learning_rate)
+    #updates = lasagne.updates.sgd(loss, params, learning_rate=learning_rate)
 
     # Create a loss expression for validation/testing. The crucial difference
     # here is that we do a deterministic forward pass through the network,
     # disabling dropout layers.
     test_prediction = lasagne.layers.get_output(network, deterministic=True)
     test_loss = lasagne.objectives.aggregate(loss, weights=None, mode='sum')
+    #test_loss = test_loss.sqrt()
+
     feed_forward = theano.function([input_var], test_prediction)
 
     # Compile a function performing a training step on a mini-batch:
@@ -139,6 +145,9 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
 
     # Compile a function to compute the validation loss and accuracy:
     val_fn = theano.function([input_var, target_var], test_loss)
+
+    def rss(nums):
+        return (sum([n**2.0 for n in nums]))**0.5
 
     # Finally, launch the training loop.
     print('\n')
@@ -155,7 +164,7 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
         start_time = time.time()
         for batch in iterate_minibatches(x_train, y_train, batchsize, shuffle=False):
             inputs, targets = batch
-            train_err += train_fn(inputs,targets)
+            train_err = rss([train_err,train_fn(inputs,targets)])
             train_batches += 1
 
         # And a full pass over the validation data:
@@ -163,18 +172,18 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
         val_batches = 0
         for batch in iterate_minibatches(x_val, y_val, batchsize, shuffle=False):
             inputs, targets = batch
-            val_err += val_fn(inputs,targets)
+            val_err = rss([val_err,val_fn(inputs,targets)])
             val_batches += 1
 
         # Store the errors for plotting
-        t_plot += [train_err/train_batches]
-        v_plot += [val_err/val_batches]
+        t_plot += [train_err/train_batches**0.5]
+        v_plot += [val_err/val_batches**0.5]
 
         # Then we print the results for this epoch:
         print("Epoch {} of {} took {:.3f}s".format(
             epoch + 1, num_epochs, time.time() - start_time))
-        print("  training loss:\t\t{:.6e}".format(train_err/train_batches))
-        print("  validation loss:\t\t{:.6e}".format(val_err/val_batches))
+        print("  training loss:\t\t{:.6e}".format(train_err/train_batches**0.5))
+        print("  validation loss:\t\t{:.6e}".format(val_err/val_batches**0.5))
 
         # Early stop if failure to improve three consecutive times
         if len(v_plot) > 4:
@@ -186,10 +195,10 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
     test_batches = 0
     for batch in iterate_minibatches(x_test, y_test, batchsize, shuffle=False):
         inputs, targets = batch
-        test_err += val_fn(inputs,targets)
+        test_err = rss([test_err,val_fn(inputs,targets)])
         test_batches += 1
     print("Final results:")
-    print("  test loss:\t\t\t{:.6e}".format(test_err/test_batches))
+    print("  test loss:\t\t\t{:.6e}".format(test_err/test_batches**0.5))
 
     # Now dump the network weights to a file:
     now = datetime.datetime.now()
@@ -202,7 +211,7 @@ def main(ann3d, density_dir, intgr_dir, fluence_dir, dose_dir, output_file=None,
     plt.plot(t_plot, label="training")
     plt.plot(v_plot, label="validation")
     plt.legend()
-    plt.title('L:%s, M:%s, T:%s' % (learning_rate, momentum, test_err))
+    plt.title('L:%s, B:%s, T:%s' % (learning_rate, batchsize, test_err/test_batches**0.5))
     fig.savefig('errors_' + now + '.png')
 
 if __name__ == '__main__':

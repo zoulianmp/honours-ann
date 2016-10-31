@@ -78,8 +78,9 @@ def main(ann3d, model, density_dir, intgr_dir, fluence_dir, output_file=None):
         param_values = [f['arr_%d' % i] for i in range(len(f.files))]
 
     # Prepare Theano variables for inputs and targets
-    input_var = T.tensor4('inputs')
-    target_var = T.fmatrix('targets')
+    input_var = T.ftensor4('inputs')
+    input_var = T.ftensor5('inputs')
+    #target_var = T.fmatrix('targets')
 
     # Create neural network model (depending on first command line parameter)
     print('\n')

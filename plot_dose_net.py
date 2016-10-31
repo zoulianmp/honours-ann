@@ -66,12 +66,16 @@ def main(ann3d, model, density_dir, intgr_dir, fluence_dir, dose_dir, disp, save
     print('\n')
     print('Loading dose data...')
     dose = []
+    max_dose = 0
     for dirpath, subdirs, files in os.walk(dose_dir):
         for f in sorted(files):
             if f.endswith(".mhd"):
                 print(f)
                 dose += [mhd.load_mhd(os.path.join(dirpath, f))[0]]
-                dose[-1] = 1.6*dose[-1]/np.max(dose[-1])
+                if np.max(dose[-1]) > max_dose:
+                    max_dose = np.max(dose[-1])
+
+    dose = [d/max_dose for d in dose]
 
     # load the network weights from file
     print('\n')
@@ -80,6 +84,7 @@ def main(ann3d, model, density_dir, intgr_dir, fluence_dir, dose_dir, disp, save
         param_values = [f['arr_%d' % i] for i in range(len(f.files))]
 
     # Prepare Theano variables for inputs and targets
+    #input_var = T.ftensor4('inputs')
     input_var = T.ftensor5('inputs')
     target_var = T.fmatrix('targets')
 
@@ -105,6 +110,8 @@ def main(ann3d, model, density_dir, intgr_dir, fluence_dir, dose_dir, disp, save
         if save:
             pdd.savefig('pdd_' + now + '(' + str(i) + ').png')
             prf.savefig('profile_' + now + '(' + str(i) + ').png')
+            plt.close(pdd)
+            plt.close(prf)
 
 if __name__ == '__main__':
     if ('--help' in sys.argv) or (len(sys.argv) < 4):

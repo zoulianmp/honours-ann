@@ -18,6 +18,7 @@ import datetime
 
 import mhd_utils_3d as mhd
 import numpy as np
+import math
 
 VOXEL_SIZE = (0.125,0.125,0.125)    # voxel size (z,y,x) [cm]
 #VOXEL_SIZE = (0.25,0.25,0.25)       # voxel size (z,y,x) [cm]
@@ -70,10 +71,17 @@ def generate_fluence(vol_shape, vox_size, field_size):
     tau_wat = R_wat*MASS_ATT_WAT*DENSITY_WAT
 
     fluence = 1.0*np.exp(-tau_air-tau_wat)/R_sq
-    fluence = fluence*np.less_equal(X,field_size[0]*Z/(2.0*SS_DIST))
-    fluence = fluence*np.less_equal(Y,field_size[1]*Z/(2.0*SS_DIST))
 
-    return fluence/np.max(fluence)
+    mask = np.ones(fluence.shape)
+    mask = mask * np.less_equal(X,field_size[0]*Z/(2.0*SS_DIST))
+    mask = mask * np.less_equal(Y,field_size[1]*Z/(2.0*SS_DIST))
+
+    fluence = fluence * mask
+    #fluence = fluence * (2*mask-1)
+
+    # field size scatter factor
+    scatter = 0.1176*math.log(math.sqrt(field_size[0]*field_size[1]))
+    return fluence/np.max(fluence) + scatter
 
 def main(field_size, volume_file, output_file=None):
     if output_file is None:
@@ -106,7 +114,7 @@ if __name__ == '__main__':
         print("    generated data.")
     else:
         kwargs = {}
-        kwargs['field_size'] = int(sys.argv[1])
+        kwargs['field_size'] = float(sys.argv[1])
         kwargs['volume_file'] = sys.argv[2]
         if len(sys.argv) > 3:
             kwargs['output_file'] = sys.argv[3]

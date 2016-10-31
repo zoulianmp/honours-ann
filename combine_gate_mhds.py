@@ -15,6 +15,7 @@ from __future__ import print_function
 
 import sys
 import os
+import datetime
 
 import mhd_utils_3d as mhd
 import numpy as np
@@ -59,14 +60,20 @@ def import_dose_from_gate(root_dir, unit='dose'):
 
     return (data, meta)
 
-def main(source_dir, unit='dose', output_file='combined.mhd'):
-        [dose, meta] = import_dose_from_gate(source_dir, unit)
-        dose = dose/np.max(dose)
-        mhd.write_mhd(output_file, dose, **meta)
+def main(source_dir, unit='dose', output_file=None):
+    if output_file is None:
+        now = datetime.datetime.now()
+        now = str(now.month) + '-' + str(now.day) + '_' + \
+              str(now.hour) + '-' + str(now.minute) + '-' + str(now.second)
+        output_file = 'combined_' + now + '.mhd'
+
+    # DO NOT NORMALISE
+    [dose, meta] = import_dose_from_gate(source_dir, unit)
+    mhd.write_mhd(output_file, dose, **meta)
 
 if __name__ == '__main__':
     if ('--help' in sys.argv) or (len(sys.argv) < 2):
-        print("Combines MHD files produced by GATE into one normalised file.")
+        print("Combines MHD files produced by GATE into a single file.")
         print("Usage: %s <SOURCE DIRECTORY> [UNIT] [OUTPUT_FILE]" % sys.argv[0])
         print()
         print("SOURCE DIRECTORY: The folder containing subfolders that each")
